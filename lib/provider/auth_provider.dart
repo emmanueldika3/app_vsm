@@ -1,116 +1,131 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../models/user_model.dart'; // Ajuste le chemin si besoin
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
+  // Configuration de l'URL de base de l'API Laravel
+  // Pour Android Emulator, utilisez 'http://10.0.2.2:8000/api'
+  // Pour un téléphone physique sur le même WiFi, utilisez l'IP locale (ex: 'http://192.168.1.50:8000/api')
+  // static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl =
+      'http://192.168.56.1:8000/api'; // Remplacer par votre IP réelle
+
+  UserModel? _user;
+  String? _token;
   bool _isLoading = false;
   String? _errorMessage;
-  UserModel? _currentUser;
 
+  // Getters pour l'interface UI
+  UserModel? get user => _user;
+  String? get token => _token;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  UserModel? get currentUser => _currentUser;
+  bool get isAuthenticated => _token != null && _user != null;
 
-  // --- LISTE DES UTILISATEURS DE TEST PAR RÔLE ---
-  static List<UserModel> _mockUsers = [
-    UserModel(
-      id: '1',
-      fullName: 'Capitaine VSM',
-      phone: '690000001',
-      password: '123',
-      role: UserRole.admin,
-    ),
-    UserModel(
-      id: '2',
-      fullName: 'Emmanuel Dika',
-      phone: '690000002',
-      password: '1234',
-      role: UserRole.player,
-    ),
-    UserModel(
-      id: '3',
-      fullName: 'Trésorier Mahèn',
-      phone: '690000003',
-      password: '12345',
-      role: UserRole.treasurer,
-    ),
-  ];
-
-  // Nettoyage ultra-sécurisé du numéro : ne garde que les 9 derniers chiffres
-  String _cleanPhoneDigits(String rawPhone) {
-    // Extrait uniquement les chiffres
-    final digitsOnly = rawPhone.replaceAll(RegExp(r'\D'), '');
-
-    // Si le numéro commence par 237 et fait plus de 9 chiffres (ex: 237690000002)
-    if (digitsOnly.length > 9 && digitsOnly.startsWith('237')) {
-      return digitsOnly.substring(digitsOnly.length - 9);
-    }
-
-    return digitsOnly;
+  AuthProvider() {
+    // Tentative d'auto-connexion au chargement du provider
+    tryAutoLogin();
   }
 
-  // --- LOGIQUE DE CONNEXION ---
-  Future<bool> login(String rawPhone, String rawPassword) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    // Simulation de délai réseau
-    await Future.delayed(const Duration(milliseconds: 1000));
+  // 🔑 CONNEXION PAR TÉLÉPHONE & MOT DE PASSE
+  Future<bool> login({required String phone, required String password}) async {
+    _setLoading(true);
+    _clearError();
 
     try {
-      final inputPhone = _cleanPhoneDigits(rawPhone);
-      final inputPassword = rawPassword.trim();
-
-      debugPrint(
-        "--> Tentative de connexion avec : phone='$inputPhone', password='$inputPassword'",
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'phone': phone, 'password': password}),
       );
 
-      UserModel? matchedUser;
+      final responseData = jsonDecode(response.body);
 
-      for (final u in _mockUsers) {
-        final mockPhone = _cleanPhoneDigits(u.phone);
-        final mockPassword = u.password.trim();
+      if (response.statusCode == 200) {
+        _token = responseData['token'];
+        _user = UserModel.fromJson(responseData['user']);
 
-        if (mockPhone == inputPhone && mockPassword == inputPassword) {
-          matchedUser = u;
-          break;
-        }
-      }
+        // Sauvegarde locale dans SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', _token!);
+        await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
 
-      if (matchedUser != null) {
-        _currentUser = matchedUser;
-        _isLoading = false;
-        _errorMessage = null;
-        debugPrint(
-          "--> Succès : Connecté en tant que ${matchedUser.fullName} (${matchedUser.role})",
-        );
+        _setLoading(false);
         notifyListeners();
         return true;
       } else {
-        _currentUser = null;
-        _isLoading = false;
-        _errorMessage = "Numéro ou mot de passe incorrect.";
-        debugPrint("--> Échec : Identifiants non trouvés");
-        notifyListeners();
+        _errorMessage = responseData['message'] ?? 'Identifiants incorrects.';
+        _setLoading(false);
         return false;
       }
-    } catch (e, stackTrace) {
-      debugPrint("--> CRASH LOGIN : $e");
-      debugPrint("--> STACKTRACE : $stackTrace");
-
-      _currentUser = null;
-      _isLoading = false;
-      _errorMessage =
-          "Erreur système : $e"; // Affiche l'erreur exacte sur l'écran pour debug
-      notifyListeners();
+    } catch (error) {
+      _errorMessage = 'Erreur de connexion réseau. Vérifiez le serveur.';
+      _setLoading(false);
       return false;
     }
   }
 
-  // --- DÉCONNEXION ---
-  void logout() {
-    _currentUser = null;
-    _errorMessage = null;
+  // 🔄 AUTO-CONNEXION (Au démarrage de l'application)
+  Future<bool> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!prefs.containsKey('auth_token') || !prefs.containsKey('auth_user')) {
+      return false;
+    }
+
+    try {
+      _token = prefs.getString('auth_token');
+      final userMap = jsonDecode(prefs.getString('auth_user')!);
+      _user = UserModel.fromJson(userMap);
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      await logout();
+      return false;
+    }
+  }
+
+  // 🚪 DÉCONNEXION
+  Future<void> logout() async {
+    if (_token != null) {
+      try {
+        // Optionnel : Révoquer le token côté Laravel Sanctum
+        await http.post(
+          Uri.parse('$baseUrl/logout'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $_token',
+          },
+        );
+      } catch (_) {
+        // En cas d'erreur réseau, on poursuit la déconnexion locale
+      }
+    }
+
+    _user = null;
+    _token = null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('auth_user');
+
     notifyListeners();
+  }
+
+  // Helpers internes
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _errorMessage = null;
   }
 }

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/user_model.dart';
 import '../provider/auth_provider.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
+// Importez vos autres dashboards selon les rôles
+// import 'package:vsm_app/screens/AdminDashboardScreen.dart';
+// import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
+// import 'package:vsm_app/screens/PresidentDashboardScreen.dart';
+// import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 
 class LoginController {
   // Constantes de couleurs VSM
@@ -25,8 +31,8 @@ class LoginController {
 
     // 3. Exécuter la connexion
     final bool success = await authProvider.login(
-      phoneController.text.trim(),
-      passwordController.text.trim(),
+      phone: phoneController.text.trim(),
+      password: passwordController.text.trim(),
     );
 
     // Vérification contextuelle après appel async
@@ -35,7 +41,7 @@ class LoginController {
     final messenger = ScaffoldMessenger.of(context);
 
     if (success) {
-      final user = authProvider.currentUser;
+      final user = authProvider.user;
 
       messenger.showSnackBar(
         SnackBar(
@@ -47,10 +53,10 @@ class LoginController {
         ),
       );
 
-      // Redirection vers le Dashboard Joueur
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const PlayerDashboardScreen()),
-      );
+      // 4. Redirection dynamique basée sur le rôle
+      if (user != null) {
+        _navigateToRoleDashboard(context, user.role);
+      }
     } else {
       final errorMsg = authProvider.errorMessage ?? 'Identifiants incorrects.';
 
@@ -72,5 +78,41 @@ class LoginController {
         ),
       );
     }
+  }
+
+  // 🔀 REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
+  static void _navigateToRoleDashboard(BuildContext context, UserRole role) {
+    Widget destinationScreen;
+
+    switch (role) {
+      case UserRole.admin:
+        // TODO: Remplacer par AdminDashboardScreen() une fois créé
+        destinationScreen = const PlayerDashboardScreen();
+        break;
+
+      case UserRole.treasurer:
+        // TODO: Remplacer par TreasurerDashboardScreen()
+        destinationScreen = const PlayerDashboardScreen();
+        break;
+
+      case UserRole.president:
+        // TODO: Remplacer par PresidentDashboardScreen()
+        destinationScreen = const PlayerDashboardScreen();
+        break;
+
+      case UserRole.coach:
+        // TODO: Remplacer par CoachDashboardScreen()
+        destinationScreen = const PlayerDashboardScreen();
+        break;
+
+      case UserRole.player:
+      default:
+        destinationScreen = const PlayerDashboardScreen();
+        break;
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => destinationScreen),
+    );
   }
 }

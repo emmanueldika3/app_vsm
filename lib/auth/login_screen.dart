@@ -41,8 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Envoi des identifiants (trim pour éviter les espaces accidentels)
       final bool success = await authProvider.login(
-        _phoneController.text.trim(),
-        _passwordController.text.trim(),
+        phone: _phoneController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
       // Vérification de sécurité du BuildContext après l'attente asynchrone
@@ -61,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(
             backgroundColor: greenPrimary,
             content: Text(
-              'Connexion réussie ! Bienvenue ${authProvider.currentUser?.fullName ?? 'au VSM'}.',
+              'Connexion réussie ! Bienvenue ${authProvider.user?.fullName ?? 'au VSM'}.',
             ),
             duration: const Duration(seconds: 2),
           ),
