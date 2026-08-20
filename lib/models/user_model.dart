@@ -6,16 +6,21 @@ class UserModel {
   final String id;
   final String fullName;
   final String phone;
+  final String? photoUrl;
   final UserRole role;
 
   UserModel({
     required this.id,
     required this.fullName,
     required this.phone,
+    this.photoUrl,
     required this.role,
   });
 
-  // 🟢 GETTER POUR OBTENIR LE TEXTE DU RÔLE
+  // 🟢 NOUVEAU : Getter pour obtenir la valeur brute ('coach', 'admin', 'player')
+  String get roleName => role.name;
+
+  // 🟢 GETTER POUR OBTENIR LE TEXTE DU RÔLE (Affichage UI)
   String get roleTitle {
     switch (role) {
       case UserRole.admin:
@@ -38,6 +43,10 @@ class UserModel {
       id: json['id'].toString(),
       fullName: json['name'] ?? json['full_name'] ?? '',
       phone: json['phone'] ?? '',
+      photoUrl:
+          json['photo_url'] ??
+          json['avatar'] ??
+          json['photo'], // 👈 Ajout du champ photo
       role: _roleFromString(json['role'] ?? 'player'),
     );
   }
@@ -59,6 +68,7 @@ class UserModel {
         return UserRole.president;
       case 'coach':
       case 'entraineur':
+      case 'encadreur':
         return UserRole.coach;
       case 'player':
       case 'joueur':

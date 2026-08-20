@@ -15,15 +15,15 @@ class VsmLogo extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // color: Colors.white,
         shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 1.5),
+        // border: Border.all(color: borderColor, width: 1.0),
       ),
       child: ClipOval(
         child: Image.asset(
-          'assets/images/vsm_logo.png',
+          'assets/images/logo_vsm.png',
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => Icon(
             Icons.sports_soccer,

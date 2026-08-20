@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vsm_app/provider/auth_provider.dart';
-import 'package:vsm_app/services/authService.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
+import 'package:vsm_app/screens/AdminDashboardScreen.dart';
+import 'package:vsm_app/screens/CoachDashboardScreen.dart';
+import 'package:vsm_app/provider/admin_dashboard_provider.dart';
+// import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,15 +34,15 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // --- LOGIQUE DE CONNEXION ---
+  // --- LOGIQUE DE CONNEXION AVEC REDIRECTION PAR RÔLE ---
   void _handleLogin() async {
-    // Masque le clavier virtuel au clic
+    // Masque le clavier virtuel
     FocusScope.of(context).unfocus();
 
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      // Envoi des identifiants (trim pour éviter les espaces accidentels)
+      // 1. Envoi des identifiants au provider
       final bool success = await authProvider.login(
         phone: _phoneController.text.trim(),
         password: _passwordController.text.trim(),
@@ -48,15 +51,10 @@ class _LoginScreenState extends State<LoginScreen> {
       // Vérification de sécurité du BuildContext après l'attente asynchrone
       if (!mounted) return;
 
-      // Constantes de couleurs VSM
-      const Color greenPrimary = Color(0xFF1E5235);
-      const Color bordeauxRed = Color(0xFF6B1D2F);
-      const Color goldAccent = Color(0xFFD4AF37);
-
       final messenger = ScaffoldMessenger.of(context);
 
       if (success) {
-        // 1. Notification visuelle de succès
+        // 2. Notification visuelle de succès
         messenger.showSnackBar(
           SnackBar(
             backgroundColor: greenPrimary,
@@ -67,12 +65,13 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // 2. Redirection vers le Dashboard Joueur (Destination 1)
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const PlayerDashboardScreen(),
-          ),
-        );
+        // 3. Récupération directe du nom de l'enum ('coach', 'player', etc.)
+        // ✅ CORRECTION ICI :
+        final String userRole =
+            authProvider.user?.role.name.toLowerCase() ?? '';
+
+        // 4. Redirection selon le rôle
+        _redirectUserByRole(userRole);
       } else {
         // Gestion et affichage de l'erreur
         final errorMsg =
@@ -99,9 +98,47 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Méthode de routage selon le rôle
+  // Méthode de routage selon le rôle avec injection du Provider pour l'Admin
+  void _redirectUserByRole(String? role) {
+    switch (role) {
+      case 'admin':
+      case 'president':
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ChangeNotifierProvider(
+              create: (_) => AdminDashboardProvider(),
+              child: const AdminDashboardScreen(),
+            ),
+          ),
+        );
+        break;
+
+      case 'coach':
+      case 'encadreur':
+      case 'entraineur':
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const CoachDashboardScreen()),
+        );
+        break;
+
+      case 'treasurer':
+      case 'tresorier':
+      case 'player':
+      case 'joueur':
+      case 'veteran':
+      default:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const PlayerDashboardScreen(),
+          ),
+        );
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Écoute dynamique du Provider pour réagir aux changements d'état (isLoading, etc.)
     final authProvider = context.watch<AuthProvider>();
     final isLoading = authProvider.isLoading;
 
@@ -220,8 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            enabled:
-                                !isLoading, // Désactivé pendant le chargement
+                            enabled: !isLoading,
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               hintText: '6XX XX XX XX',
@@ -293,8 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
-                            enabled:
-                                !isLoading, // Désactivé pendant le chargement
+                            enabled: !isLoading,
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               hintText: '••••••••',
@@ -378,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 24),
 
-                          // Bouton de Connexion dynamique (Bordeaux VSM)
+                          // Bouton de Connexion
                           SizedBox(
                             width: double.infinity,
                             height: 52,

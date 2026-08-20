@@ -4,10 +4,10 @@ import '../models/user_model.dart';
 import '../provider/auth_provider.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
 // Importez vos autres dashboards selon les rôles
-// import 'package:vsm_app/screens/AdminDashboardScreen.dart';
+import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 // import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
 // import 'package:vsm_app/screens/PresidentDashboardScreen.dart';
-// import 'package:vsm_app/screens/CoachDashboardScreen.dart';
+import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 
 class LoginController {
   // Constantes de couleurs VSM
@@ -87,27 +87,27 @@ class LoginController {
     switch (role) {
       case UserRole.admin:
         // TODO: Remplacer par AdminDashboardScreen() une fois créé
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = AdminDashboardScreen();
         break;
 
       case UserRole.treasurer:
         // TODO: Remplacer par TreasurerDashboardScreen()
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = PlayerDashboardScreen();
         break;
 
       case UserRole.president:
         // TODO: Remplacer par PresidentDashboardScreen()
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = PlayerDashboardScreen();
         break;
 
       case UserRole.coach:
         // TODO: Remplacer par CoachDashboardScreen()
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = CoachDashboardScreen();
         break;
 
       case UserRole.player:
       default:
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = PlayerDashboardScreen();
         break;
     }
 

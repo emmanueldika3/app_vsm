@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -68,6 +69,35 @@ class AuthProvider extends ChangeNotifier {
       _setLoading(false);
       return false;
     }
+  }
+
+  Future<bool> updateProfilePhoto(File imageFile) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://10.0.2.2:8000/api/v1/user/photo'),
+      );
+
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
+
+      request.files.add(
+        await http.MultipartFile.fromPath('photo', imageFile.path),
+      );
+
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        // Recharger les données profil ou mettre à jour le state local
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Erreur lors de l\'envoi de la photo : $e');
+    }
+    return false;
   }
 
   // 🔄 AUTO-CONNEXION (Au démarrage de l'application)

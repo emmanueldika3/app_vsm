@@ -7,6 +7,7 @@ import './services/dashboardService.dart';
 import '../models/dashboard_data_models.dart';
 import 'package:vsm_app/provider/player_dashboard_provider.dart';
 import './provider/auth_provider.dart';
+import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 
 void main() async {
   // 1. Indique à Flutter d'attendre que le moteur soit prêt avant d'initialiser les liaisons
@@ -19,6 +20,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DashboardService()),
         ChangeNotifierProvider(create: (_) => PlayerDashboardProvider()),
+        ChangeNotifierProvider(create: (_) => AdminDashboardProvider()),
       ],
       child: VSM_app(),
     ),
