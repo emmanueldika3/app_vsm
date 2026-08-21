@@ -11,17 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::create('users', function (Blueprint $table) {
-    $table->id();
-    $table->string('name');
-    $table->string('phone')->unique(); // 👈 Ajout du champ phone unique
-    $table->string('email')->nullable()->unique(); // 👈 Rendre email nullable
-    $table->timestamp('email_verified_at')->nullable();
-    $table->string('password');
-    $table->string('role')->default('player'); // 👈 Rôle par défaut
-    $table->rememberToken();
-    $table->timestamps();
-});
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('phone')->unique();
+            $table->string('email')->nullable()->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->string('role')->default('player'); // admin, president, coach, treasurer, player
+            $table->string('position')->nullable(); // Attaquant, Milieu, Défenseur, etc.
+            $table->boolean('is_active')->default(false); // Validation d'adhésion
+            $table->string('photo_url')->nullable();
+            $table->rememberToken();
+            $table->timestamps();
+        });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
@@ -44,8 +47,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

@@ -1,24 +1,25 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "VSM_API",
-        "description": "Documentation interactive de l'API mobile Vétérans Santé Mahèn",
+        "title": "API VSM Mobile",
+        "description": "Documentation API VSM PK11",
         "version": "1.0.0"
     },
     "servers": [
         {
-            "url": "http://127.0.0.1:8000/api",
+            "url": "http://127.0.0.1:8000",
             "description": "Serveur Local"
         }
     ],
     "paths": {
-        "/login": {
+        "/api/login": {
             "post": {
                 "tags": [
                     "Authentification"
                 ],
-                "summary": "Connexion d'un membre VSM via téléphone",
-                "operationId": "67d6d0fdd54fba132e1b6f55ca254183",
+                "summary": "Connexion d'un utilisateur",
+                "description": "Connexion de l'utilisateur / membre VSM",
+                "operationId": "222b2625838e3c57e017987f73598fda",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -31,12 +32,11 @@
                                 "properties": {
                                     "phone": {
                                         "type": "string",
-                                        "example": "690000000"
+                                        "example": "+237690000000"
                                     },
                                     "password": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "secret123"
+                                        "example": "password123"
                                     }
                                 },
                                 "type": "object"
@@ -46,39 +46,17 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Connexion réussie avec émission de Token Sanctum",
+                        "description": "Connexion réussie",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Connexion réussie"
-                                        },
-                                        "user": {
-                                            "properties": {
-                                                "id": {
-                                                    "type": "integer",
-                                                    "example": 1
-                                                },
-                                                "name": {
-                                                    "type": "string",
-                                                    "example": "Emmanuel Dika"
-                                                },
-                                                "phone": {
-                                                    "type": "string",
-                                                    "example": "690000000"
-                                                },
-                                                "role": {
-                                                    "type": "string",
-                                                    "example": "player"
-                                                }
-                                            },
-                                            "type": "object"
-                                        },
                                         "token": {
                                             "type": "string",
-                                            "example": "1|1a2b3c4d5e6f7g8h9i0j"
+                                            "example": "1|laravel_sanctum_token..."
+                                        },
+                                        "user": {
+                                            "$ref": "#/components/schemas/UserModel"
                                         }
                                     },
                                     "type": "object"
@@ -87,46 +65,88 @@
                         }
                     },
                     "401": {
-                        "description": "Identifiants incorrects"
-                    },
-                    "422": {
-                        "description": "Données de validation manquantes"
+                        "description": "Identifiants invalides"
                     }
                 }
             }
         },
-        "/me": {
-            "get": {
+        "/api/logout": {
+            "post": {
                 "tags": [
                     "Authentification"
                 ],
-                "summary": "Récupérer le profil du membre connecté",
-                "operationId": "bc2032a379aa97707ccc61511897c120",
+                "summary": "Déconnexion de l'utilisateur",
+                "description": "Déconnexion de l'utilisateur",
+                "operationId": "ad65cbbd4e9f201619eae184a5961a98",
                 "responses": {
                     "200": {
-                        "description": "Données du membre VSM"
-                    },
-                    "401": {
-                        "description": "Non autorisé"
+                        "description": "Déconnexion réussie"
                     }
                 },
                 "security": [
                     {
-                        "bearerAuth": []
+                        "sanctum": []
                     }
                 ]
             }
         }
     },
     "components": {
+        "schemas": {
+            "UserModel": {
+                "title": "Modèle Utilisateur / Membre VSM",
+                "description": "Représentation JSON d'un utilisateur renvoyée à Flutter",
+                "required": [
+                    "id",
+                    "name",
+                    "phone",
+                    "role"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Emmanuel Dika"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "example": "+237690000000"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "user@vsm.cm",
+                        "nullable": true
+                    },
+                    "photo_url": {
+                        "type": "string",
+                        "example": "http://127.0.0.1:8000/storage/avatars/user_1.jpg",
+                        "nullable": true
+                    },
+                    "role": {
+                        "type": "string",
+                        "example": "player",
+                        "enum": [
+                            "admin",
+                            "player",
+                            "treasurer",
+                            "president",
+                            "coach"
+                        ]
+                    }
+                },
+                "type": "object"
+            }
+        },
         "securitySchemes": {
             "bearerAuth": {
-                "type": "http",
-                "description": "Saisissez votre token Sanctum",
+                "type": "apiKey",
+                "description": "Entrez votre jeton Sanctum sous la forme: Bearer {token}",
                 "name": "Authorization",
-                "in": "header",
-                "bearerFormat": "JWT",
-                "scheme": "bearer"
+                "in": "header"
             }
         }
     },
@@ -134,6 +154,11 @@
         {
             "name": "Authentification",
             "description": "Authentification"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
         }
     ]
 }
