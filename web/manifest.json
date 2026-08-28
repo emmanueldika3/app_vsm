@@ -1,11 +1,11 @@
 {
-    "name": "vsm_app",
-    "short_name": "vsm_app",
+    "name": "Veterans Santé Mahéns PK11",
+    "short_name": "VSM PK11",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1B5E20",
+    "theme_color": "#1B5E20",
+    "description": "Application officielle de gestion des activités du club VSM PK11.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

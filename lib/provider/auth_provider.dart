@@ -11,7 +11,7 @@ class AuthProvider extends ChangeNotifier {
   // Pour un téléphone physique sur le même WiFi, utilisez l'IP locale (ex: 'http://192.168.1.50:8000/api')
   // static const String baseUrl = 'http://10.0.2.2:8000/api';
   static const String baseUrl =
-      'http://192.168.56.1:8000/api'; // Remplacer par votre IP réelle
+      'http://127.0.0.1:8000/api'; // Remplacer par votre IP réelle
 
   UserModel? _user;
   String? _token;
@@ -75,7 +75,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://10.0.2.2:8000/api/v1/user/photo'),
+        Uri.parse('$baseUrl/user/photo'),
       );
 
       request.headers.addAll({

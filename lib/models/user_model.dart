@@ -5,22 +5,31 @@ enum UserRole { admin, player, treasurer, president, coach }
 class UserModel {
   final String id;
   final String fullName;
+  final String email;
   final String phone;
   final String? photoUrl;
+  final String position;
+  final int? number;
   final UserRole role;
+  String status; // 'present', 'late', 'absent'
+  bool isStarter;
 
   UserModel({
     required this.id,
     required this.fullName,
+    required this.email,
     required this.phone,
     this.photoUrl,
+    this.position = 'Joueur',
+    this.number,
     required this.role,
+    this.status = 'absent',
+    this.isStarter = false,
   });
 
-  // 🟢 NOUVEAU : Getter pour obtenir la valeur brute ('coach', 'admin', 'player')
+  // 🟢 GETTERS UI & RÔLES
   String get roleName => role.name;
 
-  // 🟢 GETTER POUR OBTENIR LE TEXTE DU RÔLE (Affichage UI)
   String get roleTitle {
     switch (role) {
       case UserRole.admin:
@@ -37,26 +46,69 @@ class UserModel {
     }
   }
 
-  // 🟢 DESERIALISATION : Convertit la réponse JSON de Laravel en UserModel
-  factory UserModel.fromJson(Map<String, dynamic> json) {
+  // 🟢 COPYWITH (Utile pour modifier l'état localement)
+  UserModel copyWith({
+    String? id,
+    String? fullName,
+    String? email,
+    String? phone,
+    String? photoUrl,
+    String? position,
+    int? number,
+    UserRole? role,
+    String? status,
+    bool? isStarter,
+  }) {
     return UserModel(
-      id: json['id'].toString(),
-      fullName: json['name'] ?? json['full_name'] ?? '',
-      phone: json['phone'] ?? '',
-      photoUrl:
-          json['photo_url'] ??
-          json['avatar'] ??
-          json['photo'], // 👈 Ajout du champ photo
-      role: _roleFromString(json['role'] ?? 'player'),
+      id: id ?? this.id,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      photoUrl: photoUrl ?? this.photoUrl,
+      position: position ?? this.position,
+      number: number ?? this.number,
+      role: role ?? this.role,
+      status: status ?? this.status,
+      isStarter: isStarter ?? this.isStarter,
     );
   }
 
-  // 🟢 SERIALISATION : Convertit le UserModel en Map JSON
-  Map<String, dynamic> toJson() {
-    return {'id': id, 'name': fullName, 'phone': phone, 'role': role.name};
+  // 🟢 DESERIALISATION : Convertit le JSON Laravel en UserModel
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['id'].toString(),
+      fullName: json['name'] ?? json['full_name'] ?? json['fullName'] ?? '',
+      email: json['email'] ?? '',
+      phone: json['phone'] ?? json['telephone'] ?? '',
+      photoUrl: json['photo_url'] ?? json['avatar'] ?? json['photo'],
+      position: json['position'] ?? 'Joueur',
+      number: json['number'] != null
+          ? int.tryParse(json['number'].toString())
+          : null,
+      role: _roleFromString(json['role'] ?? 'player'),
+      status: json['status'] ?? json['attendance']?['status'] ?? 'absent',
+      isStarter:
+          json['is_starter'] ?? json['attendance']?['is_starter'] ?? false,
+    );
   }
 
-  // Helper pour convertir la chaîne de l'API vers l'enum
+  // 🟢 SERIALISATION : Convertit UserModel en Map JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': fullName,
+      'email': email,
+      'phone': phone,
+      'photo_url': photoUrl,
+      'position': position,
+      'number': number,
+      'role': role.name,
+      'status': status,
+      'is_starter': isStarter,
+    };
+  }
+
+  // Helper pour convertir la chaîne API vers l'enum UserRole
   static UserRole _roleFromString(String roleStr) {
     switch (roleStr.toLowerCase()) {
       case 'admin':
@@ -70,6 +122,7 @@ class UserModel {
       case 'entraineur':
       case 'encadreur':
         return UserRole.coach;
+      case 'member':
       case 'player':
       case 'joueur':
       default:

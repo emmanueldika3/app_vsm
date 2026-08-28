@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'encadreur':
       case 'entraineur':
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const CoachDashboardScreen()),
+          MaterialPageRoute(builder: (context) => CoachDashboardScreen()),
         );
         break;
 

@@ -1,6 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vsm_app/auth/login_screen.dart';
+// TODO: Décommentez et ajustez l'import vers votre écran de Tableau de Bord / Profil
+// import 'package:vsm_app/screens/dashboard_screen.dart';
+
+/// Service d'authentification réutilisable
+class AuthService {
+  // Remplacez cette méthode par votre vérification réelle (Token, SharedPreferences, etc.)
+  static Future<bool> isLoggedIn() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return false; // Passez à true pour tester la redirection d'un utilisateur connecté
+  }
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,12 +26,14 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Contrôleurs pour le Slider d'actualités
   final PageController _pageController = PageController();
   int _currentPage = 0;
   Timer? _sliderTimer;
 
-  // Données du Slider d'accueil
+  // --- LOGIQUE DE REDIRECTION DYNAMIQUE ---
+  bool _isAuthenticated = false;
+  bool _isLoadingAuth = true;
+
   final List<Map<String, dynamic>> _slides = [
     {
       'title': 'Saison 2026/2027',
@@ -48,7 +61,9 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
 
-    // Animation de la page
+    // Vérification dynamique du statut d'authentification au démarrage
+    _checkAuthStatus();
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -66,9 +81,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     _controller.forward();
 
-    // Défilement automatique du slider toutes les 4 secondes
     _sliderTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (_pageController.hasClients) {
+      if (_pageController.hasClients && mounted) {
         _currentPage = (_currentPage + 1) % _slides.length;
         _pageController.animateToPage(
           _currentPage,
@@ -77,6 +91,35 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     });
+  }
+
+  /// Vérifie le statut utilisateur de manière asynchrone
+  Future<void> _checkAuthStatus() async {
+    final loggedIn = await AuthService.isLoggedIn();
+    if (mounted) {
+      setState(() {
+        _isAuthenticated = loggedIn;
+        _isLoadingAuth = false;
+      });
+    }
+  }
+
+  /// Méthode de redirection dynamique au clic sur le bouton principal
+  void _handleAuthNavigation() {
+    if (_isAuthenticated) {
+      // REDIRECTION SI CONNECTÉ : vers le Dashboard
+      // Navigator.of(context).pushReplacement(
+      //   MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      // );
+    } else {
+      // REDIRECTION SI NON CONNECTÉ : vers l'écran de Login
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (context) => const LoginScreen()))
+          .then((_) {
+            // Rafraîchir l'état si l'utilisateur revient en arrière
+            _checkAuthStatus();
+          });
+    }
   }
 
   @override
@@ -119,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen>
                     // --- 1. EN-TÊTE COMPACT (LOGO & TITRE) ---
                     Row(
                       children: [
-                        // Logo plus petit et discret
                         Container(
                           width: 65,
                           height: 65,
@@ -152,7 +194,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                         const SizedBox(width: 14),
-                        // Textes
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,7 +320,6 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                           ),
                           const SizedBox(height: 10),
-                          // Indicateur de points pour le Slider
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: List.generate(
@@ -351,15 +391,21 @@ class _HomeScreenState extends State<HomeScreen>
 
                     const SizedBox(height: 16),
 
-                    // --- 4. BARRE DE BOUTONS COMPACTE (CÔTE À CÔTE) ---
+                    // --- 4. BARRE DE BOUTONS AVEC REDIRECTION DYNAMIQUE ---
                     Row(
                       children: [
-                        // Bouton Découvrir
                         Expanded(
                           child: SizedBox(
                             height: 48,
                             child: OutlinedButton(
-                              onPressed: () {},
+                              onPressed: () {
+                                if (_pageController.hasClients) {
+                                  _pageController.nextPage(
+                                    duration: const Duration(milliseconds: 500),
+                                    curve: Curves.easeOut,
+                                  );
+                                }
+                              },
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(
                                   color: Colors.white.withOpacity(0.4),
@@ -380,18 +426,13 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Bouton Se Connecter (Bordeaux VSM)
                         Expanded(
                           child: SizedBox(
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
-                                  ),
-                                );
-                              },
+                              onPressed: _isLoadingAuth
+                                  ? null
+                                  : _handleAuthNavigation,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: bordeauxRed,
                                 foregroundColor: Colors.white,
@@ -404,24 +445,38 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                 ),
                               ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.login_rounded,
-                                    size: 18,
-                                    color: goldAccent,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Connexion',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
+                              child: _isLoadingAuth
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: goldAccent,
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          _isAuthenticated
+                                              ? Icons.dashboard_rounded
+                                              : Icons.login_rounded,
+                                          size: 18,
+                                          color: goldAccent,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _isAuthenticated
+                                              ? 'Mon Espace'
+                                              : 'Connexion',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         ),
@@ -437,7 +492,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // Helper pour afficher les petites statistiques
   Widget _buildStatItem(
     IconData icon,
     String value,

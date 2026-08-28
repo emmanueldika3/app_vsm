@@ -101,7 +101,6 @@ class LoginController {
         break;
 
       case UserRole.coach:
-        // TODO: Remplacer par CoachDashboardScreen()
         destinationScreen = CoachDashboardScreen();
         break;
 

@@ -17,15 +17,22 @@ class AdminDashboardData {
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
     return AdminDashboardData(
-      activeMembers: json['active_members'] ?? 0,
-      pendingMembersCount: json['pending_members_count'] ?? 0,
-      clubBalance: (json['club_balance'] ?? 0).toDouble(),
-      contributionRate: (json['contribution_rate'] ?? 0).toDouble(),
-      pendingMembers: (json['pending_members'] as List? ?? [])
-          .map((m) => PendingMember.fromJson(m))
-          .toList(),
+      activeMembers: json['active_members'] ?? json['activeMembers'] ?? 0,
+      pendingMembersCount:
+          json['pending_members_count'] ?? json['pendingMembersCount'] ?? 0,
+      clubBalance: (json['club_balance'] ?? json['clubBalance'] ?? 0)
+          .toDouble(),
+      contributionRate:
+          (json['contribution_rate'] ?? json['contributionRate'] ?? 0)
+              .toDouble(),
+      pendingMembers:
+          (json['pending_members'] as List? ??
+                  json['pendingMembers'] as List? ??
+                  [])
+              .map((m) => PendingMember.fromJson(m as Map<String, dynamic>))
+              .toList(),
       financialSummary: FinancialSummary.fromJson(
-        json['financial_summary'] ?? {},
+        json['financial_summary'] ?? json['financialSummary'] ?? {},
       ),
     );
   }
@@ -46,10 +53,10 @@ class PendingMember {
 
   factory PendingMember.fromJson(Map<String, dynamic> json) {
     return PendingMember(
-      id: json['id'],
-      name: json['name'] ?? '',
-      position: json['position'] ?? 'Non spécifié',
-      createdAt: json['created_at'] ?? '',
+      id: json['id'] ?? 0,
+      name: json['name'] ?? json['full_name'] ?? 'Nom inconnu',
+      position: json['position'] ?? json['role'] ?? 'Membre',
+      createdAt: json['created_at'] ?? json['createdAt'] ?? '',
     );
   }
 }
@@ -69,10 +76,12 @@ class FinancialSummary {
 
   factory FinancialSummary.fromJson(Map<String, dynamic> json) {
     return FinancialSummary(
-      paidCount: json['paid_count'] ?? 0,
-      totalCount: json['total_count'] ?? 0,
-      totalIncome: (json['total_income'] ?? 0).toDouble(),
-      totalExpenses: (json['total_expenses'] ?? 0).toDouble(),
+      paidCount: json['paid_count'] ?? json['paidCount'] ?? 0,
+      totalCount: json['total_count'] ?? json['totalCount'] ?? 0,
+      totalIncome: (json['total_income'] ?? json['totalIncome'] ?? 0)
+          .toDouble(),
+      totalExpenses: (json['total_expenses'] ?? json['totalExpenses'] ?? 0)
+          .toDouble(),
     );
   }
 }

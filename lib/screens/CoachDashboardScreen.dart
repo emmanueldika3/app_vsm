@@ -1,109 +1,55 @@
-// lib/screens/coach_dashboard.dart
+// lib/screens/coach_dashboard_screen.dart
+
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../widgets/custom_bottom_navigation_bar.dart';
-import '../widgets/create_event_dialog.dart';
-import '../widgets/players_list_widget.dart';
+import 'package:http/http.dart' as http;
+
+import '../models/announcement_model.dart';
+import '../models/user_model.dart';
 import '../widgets/announcements_widget.dart';
+import '../widgets/custom_bottom_navigation_bar.dart';
 
 class CoachDashboardScreen extends StatefulWidget {
-  const CoachDashboardScreen({super.key});
+  final String? userToken;
+
+  const CoachDashboardScreen({Key? key, this.userToken}) : super(key: key);
 
   @override
   State<CoachDashboardScreen> createState() => _CoachDashboardScreenState();
 }
 
+int _currentIndex = 0;
+
 class _CoachDashboardScreenState extends State<CoachDashboardScreen>
     with SingleTickerProviderStateMixin {
-  // Charte Graphique VSM
-  static const Color greenPrimary = Color(0xFF1B5E20);
-  static const Color bordeauxRed = Color(0xFF6B1D2F);
-  static const Color goldAccent = Color(0xFFFFD700);
-  static const Color lightBg = Color(0xFFF8F9FA);
-
   late TabController _tabController;
-  int _currentIndex = 0;
-  final String _apiUrl =
-      'https://votre-api-laravel.com'; // URL de votre API Backend
 
-  // Communiqués de l'administration
-  final List<Map<String, String>> _adminAnnouncements = [
-    {
-      'title': 'Assemblée Générale Extraordinaire',
-      'content': 'Réunion obligatoire après la séance dominicale à 10h00.',
-      'date': '18/08/2026',
-    },
-    {
-      'title': 'Cotisations mensuelles',
-      'content': 'Merci d\'être à jour pour la séance de ce dimanche.',
-      'date': '15/08/2026',
-    },
-  ];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  // Séance ou Match en cours
-  Map<String, dynamic> _currentSession = {
-    'title': 'SÉANCE DOMINICALE',
-    'opponent': 'Entraînement Interne',
-    'date': 'Dimanche, 06h30',
-    'location': 'Stade PK11',
-    'type': 'training',
+  List<AnnouncementModel> _announcements = [];
+  Map<String, dynamic>? _currentSession;
+  List<UserModel> _members = [];
+
+  String get baseUrl {
+    if (kIsWeb) return 'http://127.0.0.1:8000/api';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
+    return 'http://127.0.0.1:8000/api';
+  }
+
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    if (widget.userToken != null) 'Authorization': 'Bearer ${widget.userToken}',
   };
-
-  // Liste locale / d'état pour la gestion de présence et de composition tactique
-  final List<Map<String, dynamic>> _players = [
-    {
-      'id': '1',
-      'name': 'Eto\'o Samuel',
-      'position': 'Attaquant',
-      'number': 9,
-      'status': 'present',
-      'isStarter': true,
-    },
-    {
-      'id': '2',
-      'name': 'Song Rigobert',
-      'position': 'Défenseur',
-      'number': 4,
-      'status': 'present',
-      'isStarter': true,
-    },
-    {
-      'id': '3',
-      'name': 'Kameni Idriss',
-      'position': 'Gardien',
-      'number': 1,
-      'status': 'present',
-      'isStarter': true,
-    },
-    {
-      'id': '4',
-      'name': 'Mbami Modeste',
-      'position': 'Milieu',
-      'number': 8,
-      'status': 'late',
-      'isStarter': false,
-    },
-    {
-      'id': '5',
-      'name': 'Geremi Njitap',
-      'position': 'Défenseur',
-      'number': 12,
-      'status': 'present',
-      'isStarter': true,
-    },
-    {
-      'id': '6',
-      'name': 'Achille Webó',
-      'position': 'Attaquant',
-      'number': 15,
-      'status': 'absent',
-      'isStarter': false,
-    },
-  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _fetchDashboardData();
   }
 
   @override
@@ -112,151 +58,221 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen>
     super.dispose();
   }
 
-  // Calculs des présences
-  int get _presentCount =>
-      _players.where((p) => p['status'] == 'present').length;
-  int get _lateCount => _players.where((p) => p['status'] == 'late').length;
-  int get _absentCount => _players.where((p) => p['status'] == 'absent').length;
-  int get _starterCount => _players.where((p) => p['isStarter'] == true).length;
-
-  void _toggleStarterStatus(Map<String, dynamic> player) {
-    bool currentStatus = player['isStarter'] ?? false;
-    if (!currentStatus && _starterCount >= 11) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('11 titulaires maximum sur le terrain !'),
-          backgroundColor: bordeauxRed,
-        ),
-      );
-      return;
-    }
+  Future<void> _fetchDashboardData() async {
     setState(() {
-      player['isStarter'] = !currentStatus;
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final results = await Future.wait([
+        http.get(Uri.parse('$baseUrl/announcements'), headers: _headers),
+        http.get(Uri.parse('$baseUrl/sessions/current'), headers: _headers),
+        http.get(Uri.parse('$baseUrl/users'), headers: _headers),
+      ]).timeout(const Duration(seconds: 5));
+
+      if (!mounted) return;
+
+      setState(() {
+        if (results[0].statusCode == 200) {
+          final data = jsonDecode(results[0].body) as List;
+          _announcements = data
+              .map((j) => AnnouncementModel.fromJson(j))
+              .toList();
+        }
+        if (results[1].statusCode == 200) {
+          _currentSession = jsonDecode(results[1].body) as Map<String, dynamic>;
+        }
+        if (results[2].statusCode == 200) {
+          final data = jsonDecode(results[2].body) as List;
+          _members = data.map((j) => UserModel.fromJson(j)).toList();
+        }
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Connexion au serveur impossible.';
+      });
+    }
   }
 
-  void _handleCreateEvent(Map<String, dynamic> eventData) {
-    setState(() {
-      _currentSession = eventData;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Activité "${eventData['title']}" créée et notifiée aux joueurs !',
-        ),
-        backgroundColor: greenPrimary,
-      ),
-    );
+  Future<void> _updateAttendance(UserModel user, String status) async {
+    final oldStatus = user.status;
+    setState(() => user.status = status);
+
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/attendances/${user.id}'),
+        headers: _headers,
+        body: jsonEncode({
+          'session_id': _currentSession?['id'],
+          'status': status,
+        }),
+      );
+      if (res.statusCode != 200) setState(() => user.status = oldStatus);
+    } catch (_) {
+      setState(() => user.status = oldStatus);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    const primaryGreen = Color(0xFF1B5E20);
+
     return Scaffold(
-      backgroundColor: lightBg,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: greenPrimary,
-        elevation: 2,
-        title: const Column(
+        backgroundColor: primaryGreen,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: const [
             Text(
               'Direction Technique VSM',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: 16,
               ),
             ),
             Text(
               'Coach - Terrain PK11',
-              style: TextStyle(color: goldAccent, fontSize: 12),
+              style: TextStyle(color: Colors.amber, fontSize: 11),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.add_circle_outline,
-              color: goldAccent,
-              size: 26,
-            ),
-            tooltip: 'Programmer un match / séance',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) =>
-                    CreateEventDialog(onSubmit: _handleCreateEvent),
-              );
-            },
+            icon: const Icon(Icons.add_circle_outline, color: Colors.amber),
+            onPressed: () {},
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: goldAccent,
+          indicatorColor: Colors.amber,
           indicatorWeight: 3,
-          labelColor: goldAccent,
+          labelColor: Colors.amber,
           unselectedLabelColor: Colors.white70,
           tabs: const [
-            Tab(icon: Icon(Icons.fact_check_outlined), text: 'Appel'),
-            Tab(icon: Icon(Icons.sports_soccer_outlined), text: 'Tactique'),
-            Tab(icon: Icon(Icons.people_outline), text: 'Effectif API'),
+            Tab(
+              icon: Icon(Icons.assignment_turned_in, size: 20),
+              text: 'Appel',
+            ),
+            Tab(icon: Icon(Icons.sports_soccer, size: 20), text: 'Tactique'),
+            Tab(icon: Icon(Icons.groups, size: 20), text: 'Effectif API'),
           ],
         ),
       ),
-      body: Column(
-        children: [
-          // 1. COMMUNIQUÉS DE L'ADMINISTRATION
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 6.0,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _fetchDashboardData,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAppelTab(),
+                  const Center(child: Text('Volet Tactique')),
+                  const Center(child: Text('Volet Effectif API')),
+                ],
+              ),
             ),
-            child: AnnouncementsWidget(announcements: _adminAnnouncements),
-          ),
 
-          // 2. EN-TÊTE SÉANCE / MATCH DU JOUR
-          _buildMatchHeaderCard(),
-
-          // 3. ENSEMBLE DES ONGLETS (APPEL, TACTIQUE, EFFECTIF API)
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAttendanceTab(),
-                _buildTacticsTab(),
-                _buildApiPlayersTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
+      // 🟢 TON WIDGET PERSONNALISÉ INTÉGRÉ (AVEC AUTOMATISME DE NAVIGATION)
       bottomNavigationBar: CustomBottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
       ),
     );
   }
 
-  // Card récapitulative du match ou entraînement programmé
-  Widget _buildMatchHeaderCard() {
-    bool isMatch = _currentSession['type'] == 'match';
+  // VOLET 1 : APPEL
+  Widget _buildAppelTab() {
+    int presents = _members.where((m) => m.status == 'present').length;
+    int retards = _members.where((m) => m.status == 'late').length;
+    int absents = _members.where((m) => m.status == 'absent').length;
 
+    return ListView(
+      padding: const EdgeInsets.all(12.0),
+      children: [
+        if (_errorMessage != null)
+          Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.red),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _fetchDashboardData,
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+
+        if (_announcements.isNotEmpty)
+          AnnouncementsWidget(
+            announcements: _announcements.map((a) => a.toWidgetMap()).toList(),
+          ),
+
+        const SizedBox(height: 12),
+        _buildSessionCard(),
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            _buildStatCard(
+              '$presents',
+              'Présents',
+              const Color(0xFFE8F5E9),
+              Colors.green[800]!,
+            ),
+            const SizedBox(width: 8),
+            _buildStatCard(
+              '$retards',
+              'Retards',
+              const Color(0xFFFFF8E1),
+              Colors.orange[800]!,
+            ),
+            const SizedBox(width: 8),
+            _buildStatCard(
+              '$absents',
+              'Absents',
+              const Color(0xFFFFEBEE),
+              Colors.red[800]!,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+        ..._members.map((member) => _buildPlayerTile(member)).toList(),
+      ],
+    );
+  }
+
+  Widget _buildSessionCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: goldAccent.withAlpha(150)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.amber.shade200, width: 1.5),
       ),
       child: Column(
         children: [
@@ -264,54 +280,54 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isMatch
-                      ? bordeauxRed.withAlpha(25)
-                      : greenPrimary.withAlpha(25),
+                  color: Colors.green[50],
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  _currentSession['title'].toString().toUpperCase(),
+                  _currentSession?['type'] ?? 'SÉANCE DOMINICALE',
                   style: TextStyle(
-                    color: isMatch ? bordeauxRed : greenPrimary,
+                    color: Colors.green[800],
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
                   ),
                 ),
               ),
               Text(
-                '${_currentSession['date'] ?? ''} - ${_currentSession['location'] ?? 'Stade PK11'}',
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                _currentSession?['time'] ?? 'Dimanche, 06h30 - Stade PK11',
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'VSM Vétérans',
+              Text(
+                _currentSession?['team_a'] ?? 'VSM Vétérans',
                 style: TextStyle(
+                  color: Colors.green[900],
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: greenPrimary,
+                  fontSize: 15,
                 ),
               ),
-              const Text(
-                'VS',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: goldAccent,
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'VS',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               Text(
-                _currentSession['opponent'] ?? 'Séance Interne',
-                style: const TextStyle(
+                _currentSession?['team_b'] ?? 'Entraînement Interne',
+                style: TextStyle(
+                  color: Colors.red[900],
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: bordeauxRed,
+                  fontSize: 15,
                 ),
               ),
             ],
@@ -321,119 +337,33 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen>
     );
   }
 
-  // ONGLET 1 : FEUILLE D'APPEL (PRESENCES ET RETARDS)
-  Widget _buildAttendanceTab() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              _buildKpiChip(
-                label: 'Présents',
-                count: _presentCount,
-                color: Colors.green,
-              ),
-              const SizedBox(width: 8),
-              _buildKpiChip(
-                label: 'Retards',
-                count: _lateCount,
-                color: Colors.orange,
-              ),
-              const SizedBox(width: 8),
-              _buildKpiChip(
-                label: 'Absents',
-                count: _absentCount,
-                color: bordeauxRed,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            itemCount: _players.length,
-            itemBuilder: (context, index) {
-              final player = _players[index];
-              return Card(
-                elevation: 0.8,
-                margin: const EdgeInsets.symmetric(vertical: 3),
-                child: ListTile(
-                  dense: true,
-                  leading: CircleAvatar(
-                    backgroundColor: greenPrimary,
-                    child: Text(
-                      '#${player['number']}',
-                      style: const TextStyle(
-                        color: goldAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    player['name'],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    player['position'],
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  trailing: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'present', label: Text('P')),
-                      ButtonSegment(value: 'late', label: Text('R')),
-                      ButtonSegment(value: 'absent', label: Text('A')),
-                    ],
-                    selected: {player['status']},
-                    onSelectionChanged: (Set<String> newSelection) {
-                      setState(() {
-                        player['status'] = newSelection.first;
-                      });
-                    },
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiChip({
-    required String label,
-    required int count,
-    required Color color,
-  }) {
+  Widget _buildStatCard(
+    String count,
+    String label,
+    Color bgColor,
+    Color textColor,
+  ) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withAlpha(30),
+          color: bgColor,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withAlpha(75)),
         ),
         child: Column(
           children: [
             Text(
-              '$count',
+              count,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: textColor,
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.8)),
             ),
           ],
         ),
@@ -441,115 +371,95 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen>
     );
   }
 
-  // ONGLET 2 : TACTIQUE & 11 ENTRANT
-  Widget _buildTacticsTab() {
-    final starters = _players.where((p) => p['isStarter'] == true).toList();
-    final substitutes = _players.where((p) => p['isStarter'] != true).toList();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildPlayerTile(UserModel user) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
         children: [
-          // Représentation visuelle du terrain
-          Container(
-            height: 130,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: greenPrimary,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: goldAccent, width: 2),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.sports_soccer, color: goldAccent, size: 28),
-                  const SizedBox(height: 4),
-                  Text(
-                    'COMPOSITION TACTIQUE - (${starters.length}/11 Titulaires)',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: const Color(0xFF1B5E20),
+            child: Text(
+              '#${user.number ?? user.id}',
+              style: const TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            '11 Titulaires',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: greenPrimary,
-              fontSize: 14,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.fullName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  user.position,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
             ),
           ),
-          ...starters.map((player) => _buildTacticPlayerTile(player, true)),
-          const SizedBox(height: 12),
-          const Text(
-            'Remplaçants',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: bordeauxRed,
-              fontSize: 14,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildStatusButton(user, 'present', 'P'),
+                _buildStatusButton(user, 'late', 'R'),
+                _buildStatusButton(user, 'absent', 'A'),
+              ],
             ),
           ),
-          ...substitutes.map((player) => _buildTacticPlayerTile(player, false)),
         ],
       ),
     );
   }
 
-  Widget _buildTacticPlayerTile(Map<String, dynamic> player, bool isStarter) {
-    return Card(
-      elevation: 0.5,
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      child: ListTile(
-        dense: true,
-        title: Text(
-          player['name'],
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-        subtitle: Text(
-          player['position'],
-          style: const TextStyle(fontSize: 11),
-        ),
-        trailing: TextButton(
-          onPressed: () => _toggleStarterStatus(player),
-          child: Text(
-            isStarter ? 'Retirer' : 'Titulariser',
-            style: TextStyle(
-              color: isStarter ? bordeauxRed : greenPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildStatusButton(UserModel user, String statusKey, String label) {
+    bool isSelected = user.status == statusKey;
 
-  // ONGLET 3 : JOUEURS DISPONIBLES DEPUIS L'API
-  Widget _buildApiPlayersTab() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Effectif Enregistré (API)',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: greenPrimary,
+    return GestureDetector(
+      onTap: () => _updateAttendance(user, statusKey),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE8EAF6) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            if (isSelected) ...[
+              const Icon(Icons.check, size: 14, color: Colors.purple),
+              const SizedBox(width: 2),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                color: isSelected ? Colors.purple : Colors.grey[700],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(child: PlayersListWidget(apiUrl: _apiUrl)),
-        ],
+          ],
+        ),
       ),
     );
   }
