@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vsm_app/provider/auth_provider.dart';
+import 'package:vsm_app/provider/announcement_provider.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
-import 'package:vsm_app/screens/CoachDashboardScreen.dart';
+import 'package:vsm_app/widgets/Main_Layout.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 // import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
 
@@ -54,6 +55,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final messenger = ScaffoldMessenger.of(context);
 
       if (success) {
+        // 🔑 Transmission du token au AnnouncementProvider
+        final announcementProvider = Provider.of<AnnouncementProvider>(
+          context,
+          listen: false,
+        );
+        announcementProvider.setToken(authProvider.token);
+
+        // (Optionnel) Recharger les annonces avec les droits de l'utilisateur connecté
+        announcementProvider.fetchAnnouncements();
+
         // 2. Notification visuelle de succès
         messenger.showSnackBar(
           SnackBar(
@@ -65,13 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // 3. Récupération directe du nom de l'enum ('coach', 'player', etc.)
-        // ✅ CORRECTION ICI :
-        final String userRole =
-            authProvider.user?.role.name.toLowerCase() ?? '';
-
-        // 4. Redirection selon le rôle
-        _redirectUserByRole(userRole);
+        // 3. Redirection unique vers MainLayout (il gèrera le rôle en interne)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainLayout()),
+        );
       } else {
         // Gestion et affichage de l'erreur
         final errorMsg =
@@ -100,41 +108,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Méthode de routage selon le rôle
   // Méthode de routage selon le rôle avec injection du Provider pour l'Admin
-  void _redirectUserByRole(String? role) {
-    switch (role) {
-      case 'admin':
-      case 'president':
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => ChangeNotifierProvider(
-              create: (_) => AdminDashboardProvider(),
-              child: const AdminDashboardScreen(),
-            ),
-          ),
-        );
-        break;
-
-      case 'coach':
-      case 'encadreur':
-      case 'entraineur':
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => CoachDashboardScreen()),
-        );
-        break;
-
-      case 'treasurer':
-      case 'tresorier':
-      case 'player':
-      case 'joueur':
-      case 'veteran':
-      default:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const PlayerDashboardScreen(),
-          ),
-        );
-        break;
-    }
+  void _redirectUser() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const MainLayout()),
+    );
   }
 
   @override

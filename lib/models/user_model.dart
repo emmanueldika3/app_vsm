@@ -2,6 +2,43 @@
 
 enum UserRole { admin, player, treasurer, president, coach }
 
+// 🟢 EXTENSION SUR L'ENUM : Permet de récupérer facilement les libellés partout
+extension UserRoleExtension on UserRole {
+  /// Libellé court en majuscules pour les titres de tableaux de bord (ex: "ESPACE JOUEUR")
+  String get label {
+    switch (this) {
+      case UserRole.admin:
+        return 'ADMINISTRATEUR';
+      case UserRole.president:
+        return 'PRÉSIDENT';
+      case UserRole.coach:
+        return 'ENTRAÎNEUR';
+      case UserRole.treasurer:
+        return 'TRÉSORIER';
+      case UserRole.player:
+      default:
+        return 'JOUEUR';
+    }
+  }
+
+  /// Libellé complet avec fonction/titre dans le club
+  String get title {
+    switch (this) {
+      case UserRole.admin:
+        return 'Capitaine / Admin';
+      case UserRole.treasurer:
+        return 'Trésorier';
+      case UserRole.president:
+        return 'Président';
+      case UserRole.coach:
+        return 'Coach / Entraîneur';
+      case UserRole.player:
+      default:
+        return 'Joueur VSM PK11';
+    }
+  }
+}
+
 class UserModel {
   final String id;
   final String fullName;
@@ -30,23 +67,13 @@ class UserModel {
   // 🟢 GETTERS UI & RÔLES
   String get roleName => role.name;
 
-  String get roleTitle {
-    switch (role) {
-      case UserRole.admin:
-        return 'Capitaine / Admin';
-      case UserRole.treasurer:
-        return 'Trésorier';
-      case UserRole.president:
-        return 'Président';
-      case UserRole.coach:
-        return 'Coach / Entraîneur';
-      case UserRole.player:
-      default:
-        return 'Joueur VSM PK11';
-    }
-  }
+  /// Libellé lisible du rôle (ex: "Capitaine / Admin", "Joueur VSM PK11")
+  String get roleTitle => role.title;
 
-  // 🟢 COPYWITH (Utile pour modifier l'état localement)
+  /// Libellé en majuscules pour les titres d'onglets / tableaux de bord (ex: "JOUEUR")
+  String get roleLabel => role.label;
+
+  // 🟢 COPYWITH
   UserModel copyWith({
     String? id,
     String? fullName,
@@ -85,7 +112,7 @@ class UserModel {
       number: json['number'] != null
           ? int.tryParse(json['number'].toString())
           : null,
-      role: _roleFromString(json['role'] ?? 'player'),
+      role: _roleFromString(json['role']?.toString() ?? 'player'),
       status: json['status'] ?? json['attendance']?['status'] ?? 'absent',
       isStarter:
           json['is_starter'] ?? json['attendance']?['is_starter'] ?? false,
@@ -110,8 +137,11 @@ class UserModel {
 
   // Helper pour convertir la chaîne API vers l'enum UserRole
   static UserRole _roleFromString(String roleStr) {
-    switch (roleStr.toLowerCase()) {
+    final String cleanRole = roleStr.toLowerCase().trim();
+
+    switch (cleanRole) {
       case 'admin':
+      case 'capitaine / admin':
         return UserRole.admin;
       case 'treasurer':
       case 'tresorier':
@@ -125,6 +155,7 @@ class UserModel {
       case 'member':
       case 'player':
       case 'joueur':
+      case 'veteran':
       default:
         return UserRole.player;
     }

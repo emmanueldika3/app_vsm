@@ -2,16 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'dart:developer';
 import '../models/event_model.dart';
 import '../models/announcement_model.dart';
 import '../models/contribution_model.dart';
 import '../models/user_model.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   // Adresse IP de votre serveur local (Émulateur Android = 10.0.2.2)
   // Appareil physique = IP de votre PC (ex: http://192.168.1.50:8000/api)
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   // Clef de stockage local du Token JWT / Sanctum
   static const String _tokenKey = 'auth_token';
@@ -230,21 +231,49 @@ class ApiService {
   // ==================== ANNONCES ====================
 
   Future<List<AnnouncementModel>> fetchAnnouncements() async {
-    final response = await _get('/announcements');
-    final List data = response is Map ? (response['data'] ?? []) : response;
-    return data.map((json) => AnnouncementModel.fromJson(json)).toList();
+    try {
+      final response = await _get('/announcements');
+
+      final List data = response is Map<String, dynamic>
+          ? (response['data'] ?? [])
+          : (response is List ? response : []);
+
+      return data.map((json) => AnnouncementModel.fromJson(json)).toList();
+    } catch (e, stack) {
+      log('Erreur fetchAnnouncements', error: e, stackTrace: stack);
+      rethrow;
+    }
   }
 
   Future<bool> createAnnouncement({
     required String title,
     required String content,
-    String priority = 'info',
+    bool isUrgent = false, // Renommé pour correspondre à la colonne BDD
   }) async {
-    final response = await _post(
-      '/announcements',
-      body: {'title': title, 'content': content, 'priority': priority},
-    );
-    return response['status'] == 'success' || response['success'] == true;
+    try {
+      final response = await _post(
+        '/announcements',
+        body: {
+          'title': title,
+          'content': content,
+          'isUrgent': isUrgent, // Mapping exact avec la colonne BDD 'isUrgent'
+        },
+      );
+
+      if (response is Map) {
+        if (response['status'] == 'success' ||
+            response['success'] == true ||
+            response.containsKey('data') ||
+            response.containsKey('id')) {
+          return true;
+        }
+      }
+
+      return true;
+    } catch (e, stack) {
+      log('Erreur fetchAnnouncements', error: e, stackTrace: stack);
+      rethrow;
+    }
   }
 
   // ==================== COTISATIONS / FINANCES ====================

@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import 'package:vsm_app/provider/Coach_dashboard_provider.dart';
+// import 'package:vsm_app/provider/Treasure_dashboard_provider.dart';
 
-class CoachDashboardScreen extends StatefulWidget {
-  const CoachDashboardScreen({super.key});
+class TreasurerDashboardScreen extends StatefulWidget {
+  const TreasurerDashboardScreen({super.key});
 
   @override
-  State<CoachDashboardScreen> createState() => _CoachDashboardScreenState();
+  State<TreasurerDashboardScreen> createState() =>
+      _TreasurerDashboardScreenState();
 }
 
-class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
+class _TreasurerDashboardScreenState extends State<TreasurerDashboardScreen> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Charger les données coach si besoin (effectifs, convocations, tactiques)
+      // Charger les données financières si besoin (bilan cotisations, caisse)
     });
   }
 
@@ -27,7 +28,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Tableau de bord - Encadrement Technique",
+            "Tableau de bord - Trésorerie",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -36,7 +37,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Contenu du tableau de bord Coach (Gestion de l'effectif, convocations)
+          // Contenu du tableau de bord Trésorier (Suivi des paiements, caisse, relances)
         ],
       ),
     );

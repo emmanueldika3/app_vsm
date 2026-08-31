@@ -98,7 +98,7 @@ class _MemberProfileCardState extends State<MemberProfileCard> {
     const Color vsmDarkGreen = Color(0xFF1E5235);
     const Color vsmBadgeGreen = Color(0xFF006837);
     const Color vsmGold = Color(0xFFFFC107);
-    const Color cardBackground = Color(0xFFF7FAF7);
+    const Color cardBackground = Color.fromARGB(255, 226, 247, 226);
 
     return Container(
       width: double.infinity,
