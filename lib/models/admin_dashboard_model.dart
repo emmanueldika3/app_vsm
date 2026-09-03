@@ -1,87 +1,98 @@
+// lib/models/admin_dashboard_data.dart
+
 class AdminDashboardData {
-  final int activeMembers;
-  final int pendingMembersCount;
-  final double clubBalance;
-  final double contributionRate;
-  final List<PendingMember> pendingMembers;
-  final FinancialSummary financialSummary;
+  final MembersOverview membersOverview;
+  final FinancialOverview financialOverview;
+  final EventsOverview eventsOverview;
 
   AdminDashboardData({
-    required this.activeMembers,
-    required this.pendingMembersCount,
-    required this.clubBalance,
-    required this.contributionRate,
-    required this.pendingMembers,
-    required this.financialSummary,
+    required this.membersOverview,
+    required this.financialOverview,
+    required this.eventsOverview,
   });
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
+    // Extraction du nœud 'data' s'il est imbriqué dans la réponse API
+    final data = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : json;
+
     return AdminDashboardData(
-      activeMembers: json['active_members'] ?? json['activeMembers'] ?? 0,
-      pendingMembersCount:
-          json['pending_members_count'] ?? json['pendingMembersCount'] ?? 0,
-      clubBalance: (json['club_balance'] ?? json['clubBalance'] ?? 0)
-          .toDouble(),
-      contributionRate:
-          (json['contribution_rate'] ?? json['contributionRate'] ?? 0)
-              .toDouble(),
-      pendingMembers:
-          (json['pending_members'] as List? ??
-                  json['pendingMembers'] as List? ??
-                  [])
-              .map((m) => PendingMember.fromJson(m as Map<String, dynamic>))
-              .toList(),
-      financialSummary: FinancialSummary.fromJson(
-        json['financial_summary'] ?? json['financialSummary'] ?? {},
+      membersOverview: MembersOverview.fromJson(
+        data['members_overview'] as Map<String, dynamic>? ?? {},
+      ),
+      financialOverview: FinancialOverview.fromJson(
+        data['financial_overview'] as Map<String, dynamic>? ?? {},
+      ),
+      eventsOverview: EventsOverview.fromJson(
+        data['events_overview'] as Map<String, dynamic>? ?? {},
       ),
     );
   }
 }
 
-class PendingMember {
-  final int id;
-  final String name;
-  final String position;
-  final String createdAt;
+class MembersOverview {
+  final int totalMembers;
+  final int activeMembers;
+  final int inactiveMembers;
+  final int newThisMonth;
 
-  PendingMember({
-    required this.id,
-    required this.name,
-    required this.position,
-    required this.createdAt,
+  MembersOverview({
+    required this.totalMembers,
+    required this.activeMembers,
+    required this.inactiveMembers,
+    required this.newThisMonth,
   });
 
-  factory PendingMember.fromJson(Map<String, dynamic> json) {
-    return PendingMember(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? json['full_name'] ?? 'Nom inconnu',
-      position: json['position'] ?? json['role'] ?? 'Membre',
-      createdAt: json['created_at'] ?? json['createdAt'] ?? '',
+  factory MembersOverview.fromJson(Map<String, dynamic> json) {
+    final total = json['total_members'] ?? 0;
+    final active = json['active_members'] ?? 0;
+
+    return MembersOverview(
+      totalMembers: total,
+      activeMembers: active,
+      inactiveMembers: (total - active) < 0 ? 0 : (total - active),
+      newThisMonth: json['new_this_month'] ?? 0,
     );
   }
 }
 
-class FinancialSummary {
-  final int paidCount;
-  final int totalCount;
-  final double totalIncome;
-  final double totalExpenses;
+class FinancialOverview {
+  final double totalCollected;
+  final double collectedThisMonth;
+  final double pendingThisMonth;
 
-  FinancialSummary({
-    required this.paidCount,
-    required this.totalCount,
-    required this.totalIncome,
-    required this.totalExpenses,
+  FinancialOverview({
+    required this.totalCollected,
+    required this.collectedThisMonth,
+    required this.pendingThisMonth,
   });
 
-  factory FinancialSummary.fromJson(Map<String, dynamic> json) {
-    return FinancialSummary(
-      paidCount: json['paid_count'] ?? json['paidCount'] ?? 0,
-      totalCount: json['total_count'] ?? json['totalCount'] ?? 0,
-      totalIncome: (json['total_income'] ?? json['totalIncome'] ?? 0)
-          .toDouble(),
-      totalExpenses: (json['total_expenses'] ?? json['totalExpenses'] ?? 0)
-          .toDouble(),
+  factory FinancialOverview.fromJson(Map<String, dynamic> json) {
+    return FinancialOverview(
+      totalCollected: (json['total_collected'] ?? 0).toDouble(),
+      collectedThisMonth: (json['collected_this_month'] ?? 0).toDouble(),
+      pendingThisMonth: (json['pending_this_month'] ?? 0).toDouble(),
+    );
+  }
+}
+
+class EventsOverview {
+  final int upcomingEvents;
+  final int totalEventsThisYear;
+  final String averageAttendanceRate;
+
+  EventsOverview({
+    required this.upcomingEvents,
+    required this.totalEventsThisYear,
+    required this.averageAttendanceRate,
+  });
+
+  factory EventsOverview.fromJson(Map<String, dynamic> json) {
+    return EventsOverview(
+      upcomingEvents: json['upcoming_events'] ?? 0,
+      totalEventsThisYear: json['total_events_this_year'] ?? 0,
+      averageAttendanceRate: json['average_attendance_rate'] ?? '0%',
     );
   }
 }

@@ -2,7 +2,7 @@
 
 enum UserRole { admin, player, treasurer, president, coach }
 
-// 🟢 EXTENSION SUR L'ENUM : Permet de récupérer facilement les libellés partout
+// 🟢 EXTENSION SUR L'ENUM : Libellés UI
 extension UserRoleExtension on UserRole {
   /// Libellé court en majuscules pour les titres de tableaux de bord (ex: "ESPACE JOUEUR")
   String get label {
@@ -40,50 +40,54 @@ extension UserRoleExtension on UserRole {
 }
 
 class UserModel {
-  final String id;
+  final int id;
   final String fullName;
-  final String email;
+  final String? email;
   final String phone;
   final String? photoUrl;
-  final String position;
-  final int? number;
+  final String? position;
+  final int? jerseyNumber;
   final UserRole role;
-  String status; // 'present', 'late', 'absent'
+  final String status; // 'active', 'pending', 'rejected', 'suspended'
+  final bool isActive;
+
+  // Champs dynamiques relatifs aux feuilles de match / présences
+  String attendanceStatus; // 'present', 'late', 'absent'
   bool isStarter;
 
   UserModel({
     required this.id,
     required this.fullName,
-    required this.email,
+    this.email,
     required this.phone,
     this.photoUrl,
-    this.position = 'Joueur',
-    this.number,
+    this.position,
+    this.jerseyNumber,
     required this.role,
-    this.status = 'absent',
+    this.status = 'pending',
+    this.isActive = false,
+    this.attendanceStatus = 'absent',
     this.isStarter = false,
   });
 
   // 🟢 GETTERS UI & RÔLES
   String get roleName => role.name;
-
-  /// Libellé lisible du rôle (ex: "Capitaine / Admin", "Joueur VSM PK11")
   String get roleTitle => role.title;
-
-  /// Libellé en majuscules pour les titres d'onglets / tableaux de bord (ex: "JOUEUR")
   String get roleLabel => role.label;
 
   // 🟢 COPYWITH
   UserModel copyWith({
-    String? id,
+    int? id,
     String? fullName,
     String? email,
     String? phone,
     String? photoUrl,
     String? position,
-    int? number,
+    int? jerseyNumber,
     UserRole? role,
     String? status,
+    bool? isActive,
+    String? attendanceStatus,
     bool? isStarter,
   }) {
     return UserModel(
@@ -93,33 +97,42 @@ class UserModel {
       phone: phone ?? this.phone,
       photoUrl: photoUrl ?? this.photoUrl,
       position: position ?? this.position,
-      number: number ?? this.number,
+      jerseyNumber: jerseyNumber ?? this.jerseyNumber,
       role: role ?? this.role,
       status: status ?? this.status,
+      isActive: isActive ?? this.isActive,
+      attendanceStatus: attendanceStatus ?? this.attendanceStatus,
       isStarter: isStarter ?? this.isStarter,
     );
   }
 
-  // 🟢 DESERIALISATION : Convertit le JSON Laravel en UserModel
+  // 🟢 DESERIALISATION : Parsing du JSON Laravel
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'].toString(),
+      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       fullName: json['name'] ?? json['full_name'] ?? json['fullName'] ?? '',
-      email: json['email'] ?? '',
+      email: json['email'],
       phone: json['phone'] ?? json['telephone'] ?? '',
       photoUrl: json['photo_url'] ?? json['avatar'] ?? json['photo'],
-      position: json['position'] ?? 'Joueur',
-      number: json['number'] != null
-          ? int.tryParse(json['number'].toString())
-          : null,
+      position: json['position'],
+      jerseyNumber: json['jersey_number'] != null
+          ? int.tryParse(json['jersey_number'].toString())
+          : (json['number'] != null
+                ? int.tryParse(json['number'].toString())
+                : null),
       role: _roleFromString(json['role']?.toString() ?? 'player'),
-      status: json['status'] ?? json['attendance']?['status'] ?? 'absent',
+      status: json['status'] ?? 'pending',
+      isActive: json['is_active'] == true || json['is_active'] == 1,
+      attendanceStatus:
+          json['attendance']?['status'] ??
+          json['attendance_status'] ??
+          'absent',
       isStarter:
           json['is_starter'] ?? json['attendance']?['is_starter'] ?? false,
     );
   }
 
-  // 🟢 SERIALISATION : Convertit UserModel en Map JSON
+  // 🟢 SERIALISATION : Map JSON vers l'API Laravel
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -128,20 +141,21 @@ class UserModel {
       'phone': phone,
       'photo_url': photoUrl,
       'position': position,
-      'number': number,
+      'jersey_number': jerseyNumber,
       'role': role.name,
       'status': status,
+      'is_active': isActive,
+      'attendance_status': attendanceStatus,
       'is_starter': isStarter,
     };
   }
 
-  // Helper pour convertir la chaîne API vers l'enum UserRole
+  // Helper de conversion chaîne API -> UserRole enum
   static UserRole _roleFromString(String roleStr) {
     final String cleanRole = roleStr.toLowerCase().trim();
 
     switch (cleanRole) {
       case 'admin':
-      case 'capitaine / admin':
         return UserRole.admin;
       case 'treasurer':
       case 'tresorier':
@@ -152,10 +166,8 @@ class UserModel {
       case 'entraineur':
       case 'encadreur':
         return UserRole.coach;
-      case 'member':
       case 'player':
       case 'joueur':
-      case 'veteran':
       default:
         return UserRole.player;
     }

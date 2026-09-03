@@ -1,8 +1,17 @@
+// lib/services/dashboardService.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../models/dashboard_data_models.dart';
+
+// Import du service HTTP centralisé
+import 'package:vsm_app/services/api_service.dart';
+
+// Import des modèles pour le tableau de bord utilisateur
+import 'package:vsm_app/models/dashboard_data_models.dart';
 
 class DashboardService extends ChangeNotifier {
+  final ApiService _apiService = ApiService();
+
   // --- ÉTAT DU DASHBOARD ---
   bool _isLoading = false;
   String? _errorMessage;
@@ -31,21 +40,43 @@ class DashboardService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 💡 Remplacez ce bloc par vos vrais appels API / Réseau / Base de données
-      // Ex: final response = await http.get(Uri.parse('https://votre-api.com/dashboard'));
+      // ApiService gère automatiquement l'URL de base et le Token Bearer
+      final jsonResponse = await _apiService.get('/user/dashboard');
+      final data = jsonResponse['data'] ?? jsonResponse;
 
-      // Mise à jour avec les résultats réels
-      // _currentAnnouncement = AnnouncementModel.fromJson(response.data['announcement']);
-      // _nextMatch = MatchModel.fromJson(response.data['next_match']);
-      // _financialSummary = FinancialSummaryModel.fromJson(response.data['financial']);
-      // _galleryAlbums = List<String>.from(response.data['albums']);
+      if (data['announcement'] != null) {
+        _currentAnnouncement = AnnouncementModel.fromJson(
+          data['announcement'] as Map<String, dynamic>,
+        );
+      } else {
+        _currentAnnouncement = null;
+      }
 
-      _isLoading = false;
-      notifyListeners();
+      if (data['next_match'] != null) {
+        _nextMatch = MatchModel.fromJson(
+          data['next_match'] as Map<String, dynamic>,
+        );
+      } else {
+        _nextMatch = null;
+      }
+
+      if (data['financial'] != null) {
+        _financialSummary = FinancialSummaryModel.fromJson(
+          data['financial'] as Map<String, dynamic>,
+        );
+      } else {
+        _financialSummary = null;
+      }
+
+      if (data['albums'] != null) {
+        _galleryAlbums = List<String>.from(data['albums'] as List);
+      } else {
+        _galleryAlbums = [];
+      }
     } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+    } finally {
       _isLoading = false;
-      _errorMessage =
-          "Impossible de charger les données du tableau de bord : $e";
       notifyListeners();
     }
   }
@@ -61,9 +92,17 @@ class DashboardService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- PRESENCE AU MATCH ---
-  void setPlayerPresence(String status) {
-    _playerPosition = status;
-    notifyListeners();
+  // --- PRÉSENCE AU MATCH ---
+  Future<void> setPlayerPresence(int matchId, String status) async {
+    try {
+      _playerPosition = status;
+      notifyListeners();
+
+      // Envoi du statut de présence au backend
+      await _apiService.post('/events/$matchId/presence', {'status': status});
+    } catch (e) {
+      _errorMessage = "Échec de la mise à jour de la présence : $e";
+      notifyListeners();
+    }
   }
 }

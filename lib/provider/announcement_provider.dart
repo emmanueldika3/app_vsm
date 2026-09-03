@@ -34,7 +34,9 @@ class Announcement {
       isUrgent: parseBool(json['isUrgent'] ?? json['is_urgent']),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'].toString())
-          : DateTime.now(),
+          : (json['createdAt'] != null
+                ? DateTime.parse(json['createdAt'].toString())
+                : DateTime.now()),
     );
   }
 }
@@ -65,12 +67,19 @@ class AnnouncementProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// En-têtes HTTP incluant le Token Bearer si disponible
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
-  };
+  /// En-têtes HTTP incluant le Token Bearer
+  Map<String, String> get _headers {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+
+    return headers;
+  }
 
   /// Récupérer la liste depuis la BD
   Future<void> fetchAnnouncements() async {
@@ -112,25 +121,24 @@ class AnnouncementProvider extends ChangeNotifier {
     bool isUrgent = false,
   }) async {
     try {
+      log('Sending Token: $_token');
+
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: _headers,
         body: json.encode({
           'title': title,
           'content': content,
-          'isUrgent': isUrgent,
+          'is_urgent': isUrgent, // Format snake_case pour Laravel
+          'isUrgent': isUrgent, // Support fallback camelCase
         }),
       );
 
-      log("STATUS CODE : ${response.statusCode}");
-      log("RESPONSE BODY : ${response.body}");
+      log("POST STATUS CODE : ${response.statusCode}");
+      log("POST RESPONSE BODY : ${response.body}");
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        try {
-          await fetchAnnouncements();
-        } catch (e) {
-          log('Erreur lors du rafraîchissement de la liste: $e');
-        }
+        await fetchAnnouncements();
         return true;
       } else {
         throw Exception('Code HTTP ${response.statusCode}: ${response.body}');
@@ -155,6 +163,7 @@ class AnnouncementProvider extends ChangeNotifier {
         body: json.encode({
           'title': title,
           'content': content,
+          'is_urgent': isUrgent,
           'isUrgent': isUrgent,
         }),
       );

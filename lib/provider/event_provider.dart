@@ -18,15 +18,18 @@ class EventProvider extends ChangeNotifier {
   EventState get state => _state;
   String get errorMessage => _errorMessage;
 
-  /// Charge la liste des événements (plus besoin du paramètre token)
+  /// Charge la liste des événements
   Future<void> fetchEvents({String? type}) async {
     _state = EventState.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
-      // CORRECTION : On passe uniquement 'type', sans 'token'
-      _events = await _apiService.fetchEvents(type: type);
+      final endpoint = type != null ? '/events?type=$type' : '/events';
+      final response = await _apiService.get(endpoint);
+
+      final List data = response is Map ? (response['data'] ?? []) : response;
+      _events = data.map((json) => EventModel.fromJson(json)).toList();
       _state = EventState.loaded;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -39,12 +42,20 @@ class EventProvider extends ChangeNotifier {
   /// Met à jour la présence à un événement
   Future<bool> updatePresence(int eventId, String status) async {
     try {
-      final success = await _apiService.updatePresence(eventId, status);
-      if (success) {
-        // Recharger les événements pour actualiser le statut
+      // Utilisation directe de _apiService.post
+      final response = await _apiService.post('/events/$eventId/presence', {
+        'status': status,
+      });
+
+      final isSuccess =
+          response is Map &&
+          (response['status'] == 'success' || response['success'] == true);
+
+      if (isSuccess) {
+        // Recharger les événements pour actualiser le statut dans l'UI
         await fetchEvents();
       }
-      return success;
+      return isSuccess;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       notifyListeners();

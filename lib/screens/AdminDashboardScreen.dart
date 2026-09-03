@@ -1,50 +1,38 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:vsm_app/provider/admin_dashboard_provider.dart';
-import 'package:vsm_app/widgets/announcements_widget.dart';
+// lib/screens/admin_dashboard_screen.dart
 
-class AdminDashboardScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:vsm_app/widgets/announcements_widget.dart';
+import 'package:vsm_app/widgets/admin_dashboard_section.dart';
+
+class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
-}
-
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AdminDashboardProvider>().fetchDashboardData;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // Le contenu spécifique à l'admin (scrollable)
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
+        children: const [
+          // Titre principal
+          Text(
             "Tableau de bord Administrateur",
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1E5235),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
-          // Injecte ici tes widgets admin (statistiques, raccourcis, validations, etc.)
-          const SizedBox(height: 20),
+          // 1. Widget d'Annonces au-dessus
+          AnnouncementsWidget(),
+          SizedBox(height: 24),
 
-          // Widget d'Annonces autonomisé
-          const AnnouncementsWidget(),
-
-          const SizedBox(height: 16),
+          // 2. Widget de Statistiques & Cartes en dessous
+          AdminStatsWidget(),
+          SizedBox(height: 16),
         ],
       ),
     );

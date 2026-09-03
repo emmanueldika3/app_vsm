@@ -1,36 +1,78 @@
-import 'dart:io';
+// lib/provider/auth_provider.dart
+
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'dart:io' show File, Platform;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
-  // Configuration de l'URL de base de l'API Laravel
-  // Pour Android Emulator, utilisez 'http://10.0.2.2:8000/api'
-  // Pour un téléphone physique sur le même WiFi, utilisez l'IP locale (ex: 'http://192.168.1.50:8000/api')
-  // static const String baseUrl = 'http://10.0.2.2:8000/api';
-  static const String baseUrl =
-      'http://127.0.0.1:8000/api'; // Remplacer par votre IP réelle
+  static const String _tokenKey = 'auth_token';
+  static const String _userKey = 'auth_user';
+
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api';
+    } else if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000/api';
+    } else {
+      return 'http://127.0.0.1:8000/api';
+    }
+  }
 
   UserModel? _user;
   String? _token;
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Getters pour l'interface UI
   UserModel? get user => _user;
+  UserModel? get currentUser => _user; // Alias pour compatibilité
   String? get token => _token;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _user != null;
 
+  // --- GETTERS DE HÉRARCHIE ET PERMISSIONS ---
+
+  /// Super Utilisateurs / Administration Système & Club
+  bool get isAdmin =>
+      _user?.role == UserRole.admin || _user?.role == UserRole.president;
+
+  /// Droits d'Encadrement / Composition / Feuilles de Match
+  bool get isCoach =>
+      _user?.role == UserRole.coach ||
+      _user?.role == UserRole.president ||
+      _user?.role == UserRole.admin;
+
+  /// Droits de Gestion Financière / Cotisations
+  bool get isTreasurer =>
+      _user?.role == UserRole.treasurer ||
+      _user?.role == UserRole.president ||
+      _user?.role == UserRole.admin;
+
+  /// Méthodes de contrôle explicite pour les vues
+  bool get canManageUsers => isAdmin;
+  bool get canManageMatches => isCoach;
+  bool get canManageFinances => isTreasurer;
+
   AuthProvider() {
-    // Tentative d'auto-connexion au chargement du provider
     tryAutoLogin();
   }
 
-  // 🔑 CONNEXION PAR TÉLÉPHONE & MOT DE PASSE
+  // --- EN-TÊTES HTTP PAR DÉFAUT ---
+  Map<String, String> _getHeaders({bool withAuth = true}) {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (withAuth && _token != null) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+    return headers;
+  }
+
+  // 🔑 CONNEXION
   Future<bool> login({required String phone, required String password}) async {
     _setLoading(true);
     _clearError();
@@ -38,23 +80,25 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: _getHeaders(withAuth: false),
         body: jsonEncode({'phone': phone, 'password': password}),
       );
 
       final responseData = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        _token = responseData['token'];
-        _user = UserModel.fromJson(responseData['user']);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _token = responseData['token'] ?? responseData['access_token'];
 
-        // Sauvegarde locale dans SharedPreferences
+        final userJson = responseData['user'] ?? responseData['data'];
+        if (userJson != null) {
+          _user = UserModel.fromJson(userJson);
+        }
+
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', _token!);
-        await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
+        if (_token != null) await prefs.setString(_tokenKey, _token!);
+        if (_user != null) {
+          await prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+        }
 
         _setLoading(false);
         notifyListeners();
@@ -71,7 +115,35 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // 🔄 RAFRAÎCHISSEMENT DU PROFIL DEPUIS L'API
+  Future<void> fetchProfile() async {
+    if (_token == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final userJson = data['data'] ?? data['user'] ?? data;
+        _user = UserModel.fromJson(userJson);
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement du profil: $e');
+    }
+  }
+
+  // 📸 MISE À JOUR DE LA PHOTO DE PROFIL
   Future<bool> updateProfilePhoto(File imageFile) async {
+    if (_token == null) return false;
+
     try {
       var request = http.MultipartRequest(
         'POST',
@@ -79,7 +151,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       request.headers.addAll({
-        'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $_token',
         'Accept': 'application/json',
       });
 
@@ -87,10 +159,18 @@ class AuthProvider extends ChangeNotifier {
         await http.MultipartFile.fromPath('photo', imageFile.path),
       );
 
-      var response = await request.send();
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
-        // Recharger les données profil ou mettre à jour le state local
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['user'] != null) {
+          _user = UserModel.fromJson(responseData['user']);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+        }
+
         notifyListeners();
         return true;
       }
@@ -100,17 +180,17 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  // 🔄 AUTO-CONNEXION (Au démarrage de l'application)
+  // 🔄 AUTO-CONNEXION
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
 
-    if (!prefs.containsKey('auth_token') || !prefs.containsKey('auth_user')) {
+    if (!prefs.containsKey(_tokenKey) || !prefs.containsKey(_userKey)) {
       return false;
     }
 
     try {
-      _token = prefs.getString('auth_token');
-      final userMap = jsonDecode(prefs.getString('auth_user')!);
+      _token = prefs.getString(_tokenKey);
+      final userMap = jsonDecode(prefs.getString(_userKey)!);
       _user = UserModel.fromJson(userMap);
 
       notifyListeners();
@@ -125,31 +205,21 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     if (_token != null) {
       try {
-        // Optionnel : Révoquer le token côté Laravel Sanctum
-        await http.post(
-          Uri.parse('$baseUrl/logout'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $_token',
-          },
-        );
-      } catch (_) {
-        // En cas d'erreur réseau, on poursuit la déconnexion locale
-      }
+        await http.post(Uri.parse('$baseUrl/logout'), headers: _getHeaders());
+      } catch (_) {}
     }
 
     _user = null;
     _token = null;
+    _errorMessage = null;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_user');
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
 
     notifyListeners();
   }
 
-  // Helpers internes
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
