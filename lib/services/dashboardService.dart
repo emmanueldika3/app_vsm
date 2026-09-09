@@ -93,16 +93,16 @@ class DashboardService extends ChangeNotifier {
   }
 
   // --- PRÉSENCE AU MATCH ---
-  Future<void> setPlayerPresence(int matchId, String status) async {
-    try {
-      _playerPosition = status;
-      notifyListeners();
+  // Future<void> setPlayerPresence(int matchId, String status) async {
+  //   try {
+  //     _playerPosition = status;
+  //     notifyListeners();
 
-      // Envoi du statut de présence au backend
-      await _apiService.post('/events/$matchId/presence', {'status': status});
-    } catch (e) {
-      _errorMessage = "Échec de la mise à jour de la présence : $e";
-      notifyListeners();
-    }
-  }
+  //     // Envoi du statut de présence au backend
+  //     await _apiService.post('/events/$matchId/presence', {'status': status});
+  //   } catch (e) {
+  //     _errorMessage = "Échec de la mise à jour de la présence : $e";
+  //     notifyListeners();
+  //   }
+  // }
 }

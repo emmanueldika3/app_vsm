@@ -49,7 +49,7 @@ void main() async {
         // Autres Providers de l'application
         // ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => MatchProvider()),
-        ChangeNotifierProvider(create: (_) => EventProvider()),
+        // ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => PlayerDashboardProvider()),
         ChangeNotifierProvider(create: (_) => AdminDashboardProvider()),
 

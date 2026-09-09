@@ -1,81 +1,73 @@
-// lib/services/api_service.dart
-
 import 'dart:convert';
-import 'dart:io' show Platform, SocketException;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../models/cash_balance_model.dart';
+import '../models/executed_disbursements_model.dart';
 
 class ApiService {
-  static const String _tokenKey = 'auth_token';
+  // Ajuste l'URL de base selon ton environnement (10.0.2.2 pour l'émulateur Android, localhost / IP locale)
+  final String baseUrl = 'http://127.0.0.1:8000/api';
 
-  /// Détermination dynamique de l'URL selon la plateforme
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8000/api';
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api'; // IP spéciale Émulateur Android
-    } else {
-      return 'http://127.0.0.1:8000/api';
-    }
-  }
-
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
-  }
-
-  /// En-têtes HTTP avec intégration du Bearer Token (Sanctum)
-  Future<Map<String, String>> _getHeaders() async {
-    final token = await getToken();
+  /// En-têtes HTTP standards
+  Map<String, String> _getHeaders(String? token) {
     return {
-      'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
   }
 
-  Future<dynamic> get(String endpoint) async {
+  /// Requête GET générique
+  Future<dynamic> get(String endpoint, {String? token}) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _getHeaders(),
-      );
+      final response = await http.get(uri, headers: _getHeaders(token));
       return _processResponse(response);
-    } on SocketException {
-      throw Exception('Serveur injoignable. Vérifiez votre connexion.');
+    } catch (e) {
+      debugPrint('Erreur HTTP GET ($endpoint): $e');
+      rethrow;
     }
   }
 
-  Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      );
-      return _processResponse(response);
-    } on SocketException {
-      throw Exception('Serveur injoignable. Vérifiez votre connexion.');
-    }
+  /// Récupérer le solde disponible en caisse
+  Future<CashBalanceModel> fetchCashBalance(String token) async {
+    final response = await get('/admin/finances/cash-balance', token: token);
+
+    // Si get() retourne un String (response.body), décoder en Map
+    final Map<String, dynamic> jsonMap = response is String
+        ? jsonDecode(response)
+        : response;
+
+    return CashBalanceModel.fromJson(jsonMap);
   }
 
-  dynamic _processResponse(http.Response response) {
-    dynamic body;
-    try {
-      body = jsonDecode(response.body);
-    } catch (_) {
-      throw Exception('Réponse serveur invalide (${response.statusCode})');
-    }
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return body;
-    }
-
-    throw Exception(
-      body is Map && body.containsKey('message')
-          ? body['message']
-          : 'Erreur serveur (${response.statusCode})',
+  /// Récupérer les décaissements exécutés
+  Future<ExecutedDisbursementsModel> fetchExecutedDisbursements(
+    String token,
+  ) async {
+    final jsonResponse = await get(
+      '/admin/finances/executed-disbursements',
+      token: token,
     );
+    return ExecutedDisbursementsModel.fromJson(jsonResponse);
+  }
+
+  /// Traitement centralisé des réponses HTTP
+  dynamic _processResponse(http.Response response) {
+    switch (response.statusCode) {
+      case 200:
+      case 201:
+        return jsonDecode(response.body);
+      case 401:
+        throw Exception('Session expirée ou non autorisée (401).');
+      case 403:
+        throw Exception('Accès refusé (403).');
+      case 404:
+        throw Exception('Ressource non trouvée (404).');
+      case 500:
+        throw Exception('Erreur serveur interne (500).');
+      default:
+        throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
+    }
   }
 }
