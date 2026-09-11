@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/cash_balance_model.dart';
 import '../models/executed_disbursements_model.dart';
+import '../models/pending_disbursements_model.dart';
+import '../models/collected_contributions_model.dart';
 
 class ApiService {
   // Ajuste l'URL de base selon ton environnement (10.0.2.2 pour l'émulateur Android, localhost / IP locale)
@@ -33,10 +35,11 @@ class ApiService {
   Future<CashBalanceModel> fetchCashBalance(String token) async {
     final response = await get('/admin/finances/cash-balance', token: token);
 
-    // Si get() retourne un String (response.body), décoder en Map
     final Map<String, dynamic> jsonMap = response is String
-        ? jsonDecode(response)
-        : response;
+        ? jsonDecode(response) as Map<String, dynamic>
+        : (response is http.Response
+              ? jsonDecode(response.body) as Map<String, dynamic>
+              : response as Map<String, dynamic>);
 
     return CashBalanceModel.fromJson(jsonMap);
   }
@@ -45,11 +48,19 @@ class ApiService {
   Future<ExecutedDisbursementsModel> fetchExecutedDisbursements(
     String token,
   ) async {
-    final jsonResponse = await get(
+    final response = await get(
       '/admin/finances/executed-disbursements',
       token: token,
     );
-    return ExecutedDisbursementsModel.fromJson(jsonResponse);
+
+    // Sécurisation du décodage du JSON
+    final Map<String, dynamic> jsonMap = response is String
+        ? jsonDecode(response) as Map<String, dynamic>
+        : (response is http.Response
+              ? jsonDecode(response.body) as Map<String, dynamic>
+              : response as Map<String, dynamic>);
+
+    return ExecutedDisbursementsModel.fromJson(jsonMap);
   }
 
   /// Traitement centralisé des réponses HTTP
@@ -57,17 +68,92 @@ class ApiService {
     switch (response.statusCode) {
       case 200:
       case 201:
+        if (response.body.isEmpty) return {};
         return jsonDecode(response.body);
+      case 400:
+        throw Exception('Requête invalide (400).');
       case 401:
         throw Exception('Session expirée ou non autorisée (401).');
       case 403:
         throw Exception('Accès refusé (403).');
       case 404:
         throw Exception('Ressource non trouvée (404).');
+      case 422:
+        throw Exception('Données non valides (422): ${response.body}');
       case 500:
         throw Exception('Erreur serveur interne (500).');
       default:
         throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
+    }
+  }
+
+  Future<PendingDisbursementsModel> fetchPendingDisbursements(
+    String token,
+  ) async {
+    final response = await get(
+      '/admin/finances/pending-disbursements',
+      token: token,
+    );
+
+    Map<String, dynamic> jsonMap;
+
+    if (response is String) {
+      jsonMap = jsonDecode(response) as Map<String, dynamic>;
+    } else if (response is Map<String, dynamic>) {
+      jsonMap = response;
+    } else {
+      // Si ton helper 'get' renvoie un objet Response de http (http.Response)
+      jsonMap = jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    return PendingDisbursementsModel.fromJson(jsonMap);
+  }
+
+  //Récupérer les contributions validées
+  Future<CollectedContributionsModel> fetchCollectedContributions(
+    String token,
+  ) async {
+    final response = await get(
+      '/admin/finances/collected-contributions',
+      token: token,
+    );
+
+    final Map<String, dynamic> jsonMap = response is String
+        ? jsonDecode(response) as Map<String, dynamic>
+        : (response is http.Response
+              ? jsonDecode(response.body) as Map<String, dynamic>
+              : response as Map<String, dynamic>);
+
+    return CollectedContributionsModel.fromJson(jsonMap);
+  }
+
+  // décaissement ordonné par le président
+  Future<bool> processExpenseOrdonnancement({
+    required String token,
+    required int expenseId,
+    required String status,
+    String? rejectionReason,
+  }) async {
+    try {
+      final Uri url = Uri.parse('$baseUrl/decaissements/$expenseId/ordonner');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'status': status,
+          if (rejectionReason != null) 'rejection_reason': rejectionReason,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Erreur HTTP Ordonnancement: $e");
+      return false;
     }
   }
 }

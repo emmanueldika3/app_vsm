@@ -1,10 +1,9 @@
-// lib/widgets/tabs/financial_tab_widget.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vsm_app/widgets/cash_balance_card.dart';
 import 'package:vsm_app/widgets/collected_contributions_card.dart';
 import 'package:vsm_app/widgets/executed_disbursements_card.dart';
+import 'package:vsm_app/widgets/pending_disbursements_card.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 import 'package:vsm_app/provider/auth_provider.dart';
 
@@ -72,6 +71,8 @@ class _FinancialTabWidgetState extends State<FinancialTabWidget> {
                   SizedBox(width: 160, child: CollectedContributionsCard()),
                   SizedBox(width: 12),
                   SizedBox(width: 160, child: ExecutedDisbursementsCard()),
+                  SizedBox(width: 12),
+                  SizedBox(width: 160, child: PendingDisbursementsCard()),
                 ],
               ),
             ),

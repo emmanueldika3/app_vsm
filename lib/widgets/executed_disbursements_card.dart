@@ -3,89 +3,26 @@ import 'package:provider/provider.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 
 class ExecutedDisbursementsCard extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const ExecutedDisbursementsCard({super.key, this.onTap});
-
-  static const Color bordeauxRed = Color(0xFF6B1D2F);
-  static const Color goldAccent = Color(0xFFD4AF37);
+  const ExecutedDisbursementsCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Écoute dynamique du Provider
-    final adminProvider = context.watch<AdminDashboardProvider>();
-    final data = adminProvider.dashboardData;
-    final financialDyn = data?.financialOverview as dynamic;
+    final provider = context.watch<AdminDashboardProvider>();
+    final executedModel = provider.executedDisbursements;
+    final isLoading = provider.isLoadingExecutedDisbursements;
 
-    // Récupération sécurisée du cumul des décaissements / dépenses validées
-    num rawDisbursements = 0;
-    if (financialDyn != null) {
-      try {
-        rawDisbursements =
-            financialDyn.executedDisbursements ??
-            financialDyn.totalExpenses ??
-            financialDyn.totalSpent ??
-            0;
-      } catch (_) {
-        rawDisbursements = 0;
-      }
-    }
+    final rawTotal = executedModel?.totalExecuted ?? 0.0;
+    final currency = executedModel?.currency ?? 'XAF';
+    final count = executedModel?.executedCount ?? 0;
 
-    final String formattedAmount = rawDisbursements.toStringAsFixed(0);
+    const blueTheme = Color(0xFF1565C0);
 
-    return _buildStatCard(
-      title: "Décaissements Exécutés",
-      value: "$formattedAmount XAF",
-      icon: Icons.output_rounded,
-      color: bordeauxRed,
-      bgGradient: const [Color(0xFFFFEBEE), Color(0xFFFFCDD2)],
-      actionWidget: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: bordeauxRed,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: goldAccent, width: 0.5),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.receipt_rounded, size: 14, color: goldAccent),
-              SizedBox(width: 2),
-              Text(
-                "Voir",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required List<Color> bgGradient,
-    Widget? actionWidget,
-  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: bgGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: blueTheme.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: blueTheme.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,28 +31,76 @@ class ExecutedDisbursementsCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 24),
-              if (actionWidget != null) actionWidget,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: blueTheme.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: blueTheme,
+                  size: 18,
+                ),
+              ),
+              if (count > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: blueTheme,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    "$count",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withOpacity(0.8),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Décaissements Exécutés",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: blueTheme.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              if (isLoading)
+                const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(blueTheme),
+                  ),
+                )
+              else
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "${rawTotal.toStringAsFixed(0)} $currency",
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: blueTheme,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

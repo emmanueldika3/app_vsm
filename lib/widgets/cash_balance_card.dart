@@ -1,33 +1,32 @@
 // lib/widgets/cards/cash_balance_card.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 
 class CashBalanceCard extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const CashBalanceCard({super.key, this.onTap});
+  const CashBalanceCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final adminProvider = context.watch<AdminDashboardProvider>();
-    final cashBalanceModel = adminProvider.cashBalance;
-    final isLoading = adminProvider.isLoadingCashBalance;
+    final provider = context.watch<AdminDashboardProvider>();
+    final model = provider.cashBalance;
+    final isLoading = provider.isLoadingCashBalance;
 
-    // Récupération sécurisée du solde et de la devise
-    final double rawTotal = cashBalanceModel?.totalBalance ?? 0.0;
-    final String currency = cashBalanceModel?.currency ?? 'XAF';
+    final rawTotal = model?.totalBalance ?? 0.0;
+    final currency = model?.currency ?? 'XAF';
+    final isNegative = model?.isNegative ?? (rawTotal < 0);
+
+    // Définition dynamique du thème (Vert si positif/neutre, Rouge si négatif)
+    final themeColor = isNegative
+        ? Colors.red.shade700
+        : const Color.fromARGB(255, 46, 91, 125);
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: themeColor.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: themeColor.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,65 +35,79 @@ class CashBalanceCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(
-                Icons.account_balance_wallet_rounded,
-                color: Color(0xFF1565C0),
-                size: 24,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: themeColor.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isNegative
+                      ? Icons.warning_amber_rounded
+                      : Icons.account_balance_wallet_outlined,
+                  color: themeColor,
+                  size: 18,
+                ),
               ),
-              if (onTap != null)
-                InkWell(
-                  onTap: onTap,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1565C0),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      "Détails",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+              if (isNegative)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade700,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    "Déficit",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            "Solde Caisse",
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: const Color(0xFF1565C0).withOpacity(0.8),
-              fontWeight: FontWeight.w600,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Solde Disponible",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: themeColor.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              if (isLoading)
+                SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(themeColor),
+                  ),
+                )
+              else
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "${rawTotal.toStringAsFixed(0)} $currency",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: themeColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          if (isLoading)
-            const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1565C0)),
-              ),
-            )
-          else
-            Text(
-              "${rawTotal.toStringAsFixed(0)} $currency",
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1565C0),
-              ),
-            ),
         ],
       ),
     );
