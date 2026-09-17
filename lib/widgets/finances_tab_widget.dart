@@ -4,6 +4,7 @@ import 'package:vsm_app/widgets/cash_balance_card.dart';
 import 'package:vsm_app/widgets/collected_contributions_card.dart';
 import 'package:vsm_app/widgets/executed_disbursements_card.dart';
 import 'package:vsm_app/widgets/pending_disbursements_card.dart';
+import 'package:vsm_app/widgets/ordonnancement_center_widget.dart'; // <-- Point-virgule ajouté ici
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 import 'package:vsm_app/provider/auth_provider.dart';
 
@@ -36,6 +37,9 @@ class _FinancialTabWidgetState extends State<FinancialTabWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Récupération du token utilisateur depuis l'AuthProvider
+    final token = context.watch<AuthProvider>().token ?? '';
+
     return RefreshIndicator(
       onRefresh: _loadData,
       color: greenPrimary,
@@ -48,6 +52,16 @@ class _FinancialTabWidgetState extends State<FinancialTabWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Titre d'Aperçu Général
+            const Text(
+              "Gestion financière",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: greenPrimary,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 12),
             const Text(
               "Aperçu Général",
               style: TextStyle(
@@ -76,6 +90,20 @@ class _FinancialTabWidgetState extends State<FinancialTabWidget> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // Section du Centre d'Ordonnancement (Pleine largeur sous les cartes)
+            if (token.isNotEmpty)
+              OrdonnancementCenterWidget(userToken: token)
+            else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+                child: Text(
+                  'Veuillez vous connecter pour voir l\'ordonnancement.',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
           ],
         ),
       ),
