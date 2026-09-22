@@ -4,7 +4,7 @@ import '../models/cash_balance_model.dart';
 import '../models/executed_disbursements_model.dart';
 import '../models/pending_disbursements_model.dart';
 import '../models/collected_contributions_model.dart';
-import '../models/expense_model.dart';
+import '../models/pending_member_request_model.dart';
 import '../services/api_service.dart';
 
 class AdminDashboardProvider extends ChangeNotifier {
@@ -28,7 +28,7 @@ class AdminDashboardProvider extends ChangeNotifier {
   CashBalanceModel? get cashBalance => _cashBalance;
   bool get isLoadingCashBalance => _isLoadingCashBalance;
 
-  // --- Executed Disbursements (Décaissements exécutés) ---
+  // --- Executed Disbursements ---
   ExecutedDisbursementsModel? _executedDisbursements;
   bool _isLoadingExecutedDisbursements = false;
 
@@ -36,7 +36,7 @@ class AdminDashboardProvider extends ChangeNotifier {
       _executedDisbursements;
   bool get isLoadingExecutedDisbursements => _isLoadingExecutedDisbursements;
 
-  // --- Collected Contributions (Cotisations perçues) ---
+  // --- Collected Contributions ---
   CollectedContributionsModel? _collectedContributions;
   bool _isLoadingCollectedContributions = false;
 
@@ -44,26 +44,77 @@ class AdminDashboardProvider extends ChangeNotifier {
       _collectedContributions;
   bool get isLoadingCollectedContributions => _isLoadingCollectedContributions;
 
-  // --- Pending Disbursements (Métriques / Compteur) ---
+  // --- Pending Disbursements ---
   PendingDisbursementsModel? _pendingDisbursements;
   bool _isLoadingPendingDisbursements = false;
 
   PendingDisbursementsModel? get pendingDisbursements => _pendingDisbursements;
   bool get isLoadingPendingDisbursements => _isLoadingPendingDisbursements;
 
-  // --- Liste des dépenses pour le Centre d'Ordonnancement ---
+  // --- Lists & Tables ---
   List<dynamic> _pendingExpensesList = [];
   bool _isLoadingPendingExpensesList = false;
 
   List<dynamic> get pendingExpensesList => _pendingExpensesList;
   bool get isLoadingPendingExpensesList => _isLoadingPendingExpensesList;
 
-  // --- Liste dédiée aux décaissements en attente ---
   List<dynamic> _pendingDisbursementsList = [];
   bool _isLoadingPending = false;
 
   List<dynamic> get pendingDisbursementsList => _pendingDisbursementsList;
   bool get isLoadingPending => _isLoadingPending;
+
+  List<PendingMemberRequest> _pendingMemberRequests = [];
+  bool _isLoadingPendingMembers = false;
+
+  List<PendingMemberRequest> get pendingMemberRequests =>
+      _pendingMemberRequests;
+  bool get isLoadingPendingMembers => _isLoadingPendingMembers;
+
+  bool get isLoadingPendingRequests => _isLoadingPendingMembers;
+
+  // Getter sécurisé pour les membres en attente
+  int get pendingMembersCount {
+    if (_pendingMemberRequests.isNotEmpty) {
+      return _pendingMemberRequests.length;
+    }
+
+    final membersDyn = _dashboardData?.membersOverview as dynamic;
+    if (membersDyn != null) {
+      try {
+        return membersDyn.pendingRequests ?? membersDyn.newThisMonth ?? 0;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    return 0;
+  }
+
+  // --- GESTION DES MEMBRES ACTIFS & ANNUAIRE ---
+  List<dynamic> _activeMembers = [];
+  bool _isLoadingActiveMembers = false;
+
+  List<dynamic> get activeMembers => _activeMembers;
+  bool get isLoadingActiveMembers => _isLoadingActiveMembers;
+
+  // Getter sécurisé pour activeMembersCount (Compte uniquement les membres dont status == 'active')
+  int get activeMembersCount {
+    if (_activeMembers.isNotEmpty) {
+      return _activeMembers.where((m) => m['status'] == 'active').length;
+    }
+
+    final membersDyn = _dashboardData?.membersOverview as dynamic;
+    if (membersDyn != null) {
+      try {
+        return (membersDyn.activeMembers as num?)?.toInt() ?? 0;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    return 0;
+  }
 
   // --- Getter global de chargement ---
   bool get isLoading =>
@@ -73,9 +124,10 @@ class AdminDashboardProvider extends ChangeNotifier {
       _isLoadingPendingDisbursements ||
       _isLoadingCollectedContributions ||
       _isLoadingPendingExpensesList ||
-      _isLoadingPending;
+      _isLoadingPending ||
+      _isLoadingPendingMembers ||
+      _isLoadingActiveMembers;
 
-  /// Charger l'ensemble des métriques du dashboard
   Future<void> fetchDashboardData(String token) async {
     _isLoadingData = true;
     _isLoadingCashBalance = true;
@@ -83,6 +135,8 @@ class AdminDashboardProvider extends ChangeNotifier {
     _isLoadingPendingDisbursements = true;
     _isLoadingCollectedContributions = true;
     _isLoadingPendingExpensesList = true;
+    _isLoadingPendingMembers = true;
+    _isLoadingActiveMembers = true;
     notifyListeners();
 
     try {
@@ -117,6 +171,16 @@ class AdminDashboardProvider extends ChangeNotifier {
           debugPrint("Erreur Liste Decaissements: $e");
           return null;
         }),
+        // Endpoint /users filtré par statut pending
+        _apiService.get('/users?status=pending', token: token).catchError((e) {
+          debugPrint("Erreur Membres en attente: $e");
+          return null;
+        }),
+        // Endpoint /users pour tous les membres enregistrés
+        _apiService.get('/users', token: token).catchError((e) {
+          debugPrint("Erreur Membres actifs: $e");
+          return null;
+        }),
       ]);
 
       if (results[0] != null) {
@@ -140,6 +204,28 @@ class AdminDashboardProvider extends ChangeNotifier {
             .where((e) => e['status'] == 'pending')
             .toList();
       }
+      if (results[6] != null) {
+        final rawData =
+            results[6] is Map<String, dynamic> && results[6].containsKey('data')
+            ? results[6]['data']
+            : results[6];
+        if (rawData is List) {
+          _pendingMemberRequests = rawData
+              .map((item) => PendingMemberRequest.fromJson(item))
+              .toList();
+        }
+      }
+      if (results[7] != null) {
+        final rawData =
+            results[7] is Map<String, dynamic> && results[7].containsKey('data')
+            ? results[7]['data']
+            : results[7];
+        if (rawData is List) {
+          _activeMembers = rawData
+              .where((m) => m['status'] != 'pending')
+              .toList();
+        }
+      }
     } catch (e) {
       debugPrint("Erreur globale Dashboard: $e");
     } finally {
@@ -149,11 +235,199 @@ class AdminDashboardProvider extends ChangeNotifier {
       _isLoadingPendingDisbursements = false;
       _isLoadingCollectedContributions = false;
       _isLoadingPendingExpensesList = false;
+      _isLoadingPendingMembers = false;
+      _isLoadingActiveMembers = false;
       notifyListeners();
     }
   }
 
-  /// Charger uniquement le solde disponible
+  Future<void> fetchActiveMembers(String token) async {
+    _isLoadingActiveMembers = true;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get('/users', token: token);
+
+      if (response != null) {
+        final rawData =
+            response is Map<String, dynamic> && response.containsKey('data')
+            ? response['data']
+            : response;
+
+        if (rawData is List) {
+          _activeMembers = rawData
+              .where((m) => m['status'] != 'pending')
+              .toList();
+        } else {
+          _activeMembers = [];
+        }
+      } else {
+        _activeMembers = [];
+      }
+    } catch (e) {
+      _activeMembers = [];
+      debugPrint('Erreur lors de la récupération des membres: $e');
+    } finally {
+      _isLoadingActiveMembers = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchPendingMembers(String token) async {
+    _isLoadingPendingMembers = true;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get(
+        '/users?status=pending',
+        token: token,
+      );
+
+      if (response != null) {
+        final rawData =
+            response is Map<String, dynamic> && response.containsKey('data')
+            ? response['data']
+            : response;
+
+        if (rawData is List) {
+          _pendingMemberRequests = rawData
+              .map((item) => PendingMemberRequest.fromJson(item))
+              .toList();
+        } else {
+          _pendingMemberRequests = [];
+        }
+      } else {
+        _pendingMemberRequests = [];
+      }
+    } catch (e) {
+      _pendingMemberRequests = [];
+      debugPrint('Erreur lors de la récupération des membres en attente: $e');
+    } finally {
+      _isLoadingPendingMembers = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchPendingMemberRequests(String token) async {
+    return fetchPendingMembers(token);
+  }
+
+  Future<bool> approveMember({
+    required String token,
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      final response = await _apiService.post(
+        '/users/$userId/approve',
+        token: token,
+        body: {'role': role},
+      );
+
+      if (response != null &&
+          (response['status'] == 'success' || response['success'] == true)) {
+        _pendingMemberRequests.removeWhere((req) => req.id == userId);
+
+        await Future.wait([
+          fetchDashboardData(token),
+          fetchActiveMembers(token),
+        ]);
+
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint("Erreur approveMember: $e");
+      return false;
+    }
+  }
+
+  Future<bool> rejectMember({
+    required String token,
+    required int userId,
+  }) async {
+    try {
+      final response = await _apiService.post(
+        '/users/$userId/reject',
+        token: token,
+      );
+
+      if (response != null &&
+          (response['status'] == 'success' || response['success'] == true)) {
+        _pendingMemberRequests.removeWhere((req) => req.id == userId);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint("Erreur rejectMember: $e");
+      return false;
+    }
+  }
+
+  /// Attribution dynamique du rôle d'un membre
+  Future<bool> updateMemberRole({
+    required String token,
+    required int userId,
+    required String newRole,
+  }) async {
+    try {
+      final response = await _apiService.updateUserRole(token, userId, newRole);
+
+      if (response != null &&
+          (response['status'] == 'success' || response['success'] == true)) {
+        final index = _activeMembers.indexWhere((m) => m['id'] == userId);
+        if (index != -1) {
+          _activeMembers[index]['role'] = newRole;
+        }
+
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint("Erreur updateMemberRole: $e");
+      return false;
+    }
+  }
+
+  /// Activation / Suspension de l'accès d'un membre
+  Future<bool> toggleMemberStatus({
+    required String token,
+    required int userId,
+    required bool activate,
+  }) async {
+    try {
+      final response = activate
+          ? await _apiService.activateUser(token, userId)
+          : await _apiService.suspendUser(token, userId);
+
+      if (response != null &&
+          (response['status'] == 'success' || response['success'] == true)) {
+        // 1. Mise à jour instantanée du statut local pour décrémenter/incrémenter le getter tout de suite
+        final index = _activeMembers.indexWhere((m) => m['id'] == userId);
+        if (index != -1) {
+          _activeMembers[index]['status'] = activate ? 'active' : 'suspended';
+        }
+
+        // 2. Synchronisation complète des membres depuis le serveur
+        await fetchActiveMembers(token);
+
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint("Erreur toggleMemberStatus: $e");
+      return false;
+    }
+  }
+
   Future<void> loadCashBalance(String token) async {
     _isLoadingCashBalance = true;
     notifyListeners();
@@ -168,7 +442,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Charger uniquement les décaissements exécutés
   Future<void> loadExecutedDisbursements(String token) async {
     _isLoadingExecutedDisbursements = true;
     notifyListeners();
@@ -185,7 +458,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Charger la métrique des décaissements en attente (modèle statistique)
   Future<void> loadPendingDisbursements(String token) async {
     _isLoadingPendingDisbursements = true;
     notifyListeners();
@@ -202,7 +474,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Appelé par le widget d'ordonnancement pour charger la liste des décaissements à valider
   Future<void> fetchPendingDisbursements(String token) async {
     _isLoadingPending = true;
     notifyListeners();
@@ -230,12 +501,10 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Alias de compatibilité
   Future<void> fetchPendingDisbursementsList(String token) async {
     return fetchPendingDisbursements(token);
   }
 
-  /// Charger uniquement les cotisations perçues
   Future<void> loadCollectedContributions(String token) async {
     _isLoadingCollectedContributions = true;
     notifyListeners();
@@ -252,7 +521,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Charger la liste des demandes à ordonner (depuis /decaissements)
   Future<void> fetchPendingExpensesList(String token) async {
     _isLoadingPendingExpensesList = true;
     notifyListeners();
@@ -268,6 +536,7 @@ class AdminDashboardProvider extends ChangeNotifier {
         _pendingExpensesList = [];
       }
     } catch (e) {
+      _pendingExpensesList = [];
       debugPrint("Erreur fetchPendingExpensesList: $e");
     } finally {
       _isLoadingPendingExpensesList = false;
@@ -275,7 +544,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Traitement d'ordonnancement (Validation / Rejet)
   Future<bool> processExpenseOrdonnancement({
     required String token,
     required int expenseId,
@@ -297,13 +565,11 @@ class AdminDashboardProvider extends ChangeNotifier {
 
       if (response != null &&
           (response['status'] == 'success' || response['success'] == true)) {
-        // Retrait synchrone des éléments dans les 2 listes
         _pendingExpensesList.removeWhere((item) => item['id'] == expenseId);
         _pendingDisbursementsList.removeWhere(
           (item) => item['id'] == expenseId,
         );
 
-        // Rafraîchissement des compteurs
         loadPendingDisbursements(token);
         loadCashBalance(token);
 
@@ -318,7 +584,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Alias de méthode pour ordonnerDecaissement
   Future<bool> ordonnerDecaissement({
     required String token,
     required int expenseId,

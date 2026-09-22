@@ -67,6 +67,52 @@ class ApiService {
     }
   }
 
+  /// Méthode PUT générique
+  Future<dynamic> put(
+    String endpoint, {
+    String? token,
+    Map<String, dynamic>? body,
+  }) async {
+    final cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
+    final url = Uri.parse('$baseUrl$cleanEndpoint');
+
+    try {
+      final response = await http.put(
+        url,
+        headers: _getHeaders(token),
+        body: body != null ? jsonEncode(body) : null,
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      debugPrint('Exception PUT ($endpoint): $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // GESTION DES MEMBRES ET ROLES
+  // ==========================================
+
+  /// Mettre à jour le rôle d'un membre
+  Future<dynamic> updateUserRole(String token, int userId, String role) async {
+    return await put('/users/$userId/role', token: token, body: {'role': role});
+  }
+
+  /// Suspendre l'accès d'un membre
+  Future<dynamic> suspendUser(String token, int userId) async {
+    return await post('/users/$userId/suspend', token: token);
+  }
+
+  /// Réactiver le compte d'un membre suspendu
+  Future<dynamic> activateUser(String token, int userId) async {
+    return await post('/users/$userId/activate', token: token);
+  }
+
+  // ==========================================
+  // FINANCES ET DASHBOARD
+  // ==========================================
+
   /// Récupération du solde en caisse
   Future<CashBalanceModel> fetchCashBalance(String token) async {
     final response = await this.get(

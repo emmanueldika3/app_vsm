@@ -9,117 +9,123 @@ class PendingRequestsCard extends StatelessWidget {
 
   const PendingRequestsCard({super.key, this.onTap});
 
-  static const Color bordeauxRed = Color(0xFF6B1D2F);
-
   @override
   Widget build(BuildContext context) {
     final adminProvider = context.watch<AdminDashboardProvider>();
-    final data = adminProvider.dashboardData;
-    final membersDyn = data?.membersOverview as dynamic;
+    final bool isLoading = adminProvider.isLoadingPendingRequests;
 
-    // Correctif : fallback sécurisé sur `newThisMonth` ou 0 si `pendingRequests` n'existe pas dans le modèle
-    int rawPendingCount = 0;
-    if (membersDyn != null) {
-      try {
-        rawPendingCount =
-            membersDyn.newThisMonth ?? membersDyn.pendingRequests ?? 0;
-      } catch (_) {
-        // En cas d'accès dynamique à une propriété inexistante
-        rawPendingCount = 0;
-      }
-    }
+    // Récupération du compteur dynamique synchronisé
+    final int count = adminProvider.pendingMembersCount;
 
-    final String pendingCount = rawPendingCount.toString().padLeft(2, '0');
+    // Couleurs de la charte VSM
+    const primaryColor = Color(0xFF184332);
+    const accentGold = Color(0xFFD4AF37);
 
-    return _buildStatCard(
-      title: "Demandes en attente",
-      value: pendingCount,
-      icon: Icons.hourglass_top_rounded,
-      color: bordeauxRed,
-      bgGradient: const [Color(0xFFFFEBEE), Color(0xFFFFCDD2)],
-      actionWidget: InkWell(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: bordeauxRed,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFD4AF37), width: 0.5),
+            gradient: LinearGradient(
+              colors: [
+                primaryColor.withOpacity(0.08),
+                primaryColor.withOpacity(0.03),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: primaryColor.withOpacity(0.15), width: 1),
           ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.visibility_rounded,
-                size: 14,
-                color: Color(0xFFD4AF37),
-              ),
-              SizedBox(width: 2),
-              Text(
-                "Voir",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required List<Color> bgGradient,
-    Widget? actionWidget,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: bgGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 24),
-              if (actionWidget != null) actionWidget,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_add_rounded,
+                      color: primaryColor,
+                      size: 22,
+                    ),
+                  ),
+                  if (count > 0)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accentGold,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentGold.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        "$count",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Demandes d'adhésion",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (isLoading)
+                    const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                      ),
+                    )
+                  else
+                    Text(
+                      count > 0 ? "$count en attente" : "Aucune demande",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: count > 0 ? primaryColor : Colors.grey.shade600,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withOpacity(0.8),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
