@@ -6,6 +6,8 @@ import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 import 'package:vsm_app/widgets/Main_Layout.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
+import 'package:vsm_app/config/api_config.dart';
+
 // import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -447,8 +449,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 24),
 
                   // --- 3. DEMANDE DE COMPTE / SECRETARIAT ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Pas encore de compte membre ? ',

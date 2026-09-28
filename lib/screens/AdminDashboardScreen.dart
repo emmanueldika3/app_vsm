@@ -22,28 +22,63 @@ class AdminDashboardScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: greenPrimary,
           elevation: 2,
+          // Réduction de la hauteur de la barre de titre
+          toolbarHeight: 46,
           title: const Text(
             "Tableau de bord Administrateur",
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          bottom: const TabBar(
-            indicatorColor: goldAccent,
-            indicatorWeight: 3.0,
-            labelColor: goldAccent,
-            unselectedLabelColor: Colors.white70,
-            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: [
-              Tab(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                text: 'Finances',
-              ),
-              Tab(icon: Icon(Icons.people_alt_outlined), text: 'Membres'),
-              Tab(icon: Icon(Icons.campaign_outlined), text: 'Communication'),
-            ],
+          bottom: const PreferredSize(
+            // Hauteur réduite sur mesure pour la barre d'onglets
+            preferredSize: Size.fromHeight(40),
+            child: TabBar(
+              indicatorColor: goldAccent,
+              indicatorWeight: 2.5,
+              labelColor: goldAccent,
+              unselectedLabelColor: Colors.white70,
+              labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              // Réduction des marges internes des onglets
+              labelPadding: EdgeInsets.symmetric(horizontal: 4),
+              tabs: [
+                Tab(
+                  height: 36,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.account_balance_wallet_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text('Finances'),
+                    ],
+                  ),
+                ),
+                Tab(
+                  height: 36,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.people_alt_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text('Membres'),
+                    ],
+                  ),
+                ),
+                Tab(
+                  height: 36,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.campaign_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text('Communication'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         body: const TabBarView(

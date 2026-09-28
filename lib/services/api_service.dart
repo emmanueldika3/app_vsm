@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/cash_balance_model.dart';
@@ -7,7 +8,17 @@ import '../models/pending_disbursements_model.dart';
 import '../models/collected_contributions_model.dart';
 
 class ApiService {
-  final String baseUrl = 'http://127.0.0.1:8000/api';
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api';
+    }
+
+    if (Platform.isAndroid) {
+      return 'http://10.52.90.145:8000/api';
+    }
+
+    return 'http://127.0.0.1:8000/api';
+  }
 
   // Génération centralisée des en-têtes HTTP
   Map<String, String> _getHeaders(String? token) {

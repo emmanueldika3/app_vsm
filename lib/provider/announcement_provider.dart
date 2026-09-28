@@ -1,208 +1,248 @@
-import 'dart:convert';
 import 'dart:developer';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-
-class Announcement {
-  final String id;
-  final String title;
-  final String content;
-  final bool isUrgent;
-  final DateTime createdAt;
-
-  Announcement({
-    required this.id,
-    required this.title,
-    required this.content,
-    this.isUrgent = false,
-    required this.createdAt,
-  });
-
-  factory Announcement.fromJson(Map<String, dynamic> json) {
-    bool parseBool(dynamic val) {
-      if (val is bool) return val;
-      if (val is int) return val == 1;
-      if (val is String) return val == '1' || val.toLowerCase() == 'true';
-      return false;
-    }
-
-    return Announcement(
-      id: json['id'].toString(),
-      title: json['title']?.toString() ?? '',
-      content: json['content']?.toString() ?? '',
-      isUrgent: parseBool(json['isUrgent'] ?? json['is_urgent']),
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'].toString())
-          : (json['createdAt'] != null
-                ? DateTime.parse(json['createdAt'].toString())
-                : DateTime.now()),
-    );
-  }
-}
+import '../models/announcement_model.dart';
+import '../services/AnnouncementService.dart';
 
 class AnnouncementProvider extends ChangeNotifier {
-  /// URL s'adaptant à la plateforme de test (Web/Chrome, Android, iOS)
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8000/api/announcements';
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api/announcements';
-    } else {
-      return 'http://127.0.0.1:8000/api/announcements';
-    }
-  }
+  AnnouncementService? _service;
 
   List<Announcement> _announcements = [];
+  Announcement? _latestAnnouncement;
   bool _isLoading = false;
+  String? _errorMessage;
   String? _token;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  bool _isFetchingMore = false;
 
+  bool get hasMore => _hasMore;
+  bool get isFetchingMore => _isFetchingMore;
+
+  // Constructeur d'origine conservé (ne casse pas main.dart ni ChangeNotifierProxyProvider)
+  AnnouncementProvider([this._service]);
+
+  // --- Getters ---
   List<Announcement> get announcements => List.unmodifiable(_announcements);
+  Announcement? get latestAnnouncement => _latestAnnouncement;
+  bool get hasLatestAnnouncement => _latestAnnouncement != null;
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
   String? get token => _token;
 
-  /// Définir ou mettre à jour le jeton d'authentification
+  // Permet à AuthProvider ou Main de définir le token directement
   void setToken(String? token) {
     _token = token;
     notifyListeners();
   }
 
-  /// En-têtes HTTP incluant le Token Bearer
-  Map<String, String> get _headers {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (_token != null && _token!.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $_token';
-    }
-
-    return headers;
+  // Permet de mettre à jour le service injecté
+  void updateService(AnnouncementService newService) {
+    _service = newService;
+    notifyListeners();
   }
 
-  /// Récupérer la liste depuis la BD
-  Future<void> fetchAnnouncements() async {
-    _isLoading = true;
+  /// Récupère le dernier communiqué publié depuis le backend (/api/announcements/latest)
+  Future<void> fetchLatestAnnouncement() async {
+    try {
+      final activeService = _service ?? AnnouncementService(token: _token);
+
+      log('📡 Chargement du dernier communiqué...');
+      final latest = await activeService.getLatestAnnouncement();
+
+      _latestAnnouncement = latest;
+      log('✅ Dernier communiqué chargé : ${latest?.title ?? "Aucun"}');
+    } catch (e, stackTrace) {
+      log('❌ Erreur fetchLatestAnnouncement: $e', stackTrace: stackTrace);
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchNextPage() async {
+    if (!_hasMore || _isFetchingMore || _isLoading) return;
+
+    _isFetchingMore = true;
     notifyListeners();
 
     try {
-      final response = await http.get(Uri.parse(baseUrl), headers: _headers);
+      final activeService = _service ?? AnnouncementService(token: _token);
+      final nextPage = _currentPage + 1;
 
-      log('Fetch Status: ${response.statusCode}');
+      log('📡 Chargement de la page $nextPage...');
+      final result = await activeService.getAnnouncements(page: nextPage);
 
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        final List<dynamic> data = decoded is Map<String, dynamic>
-            ? (decoded['data'] ?? [])
-            : (decoded as List<dynamic>);
+      final List<Announcement> newItems = List<Announcement>.from(
+        result['items'],
+      );
+      _announcements.addAll(newItems);
+      _hasMore = result['hasMore'] ?? false;
+      _currentPage = nextPage;
 
-        _announcements = data
-            .map((item) => Announcement.fromJson(item as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception(
-          'Erreur de chargement (${response.statusCode}): ${response.body}',
-        );
-      }
+      log('✅ Page $nextPage chargée (${newItems.length} éléments ajoutés)');
     } catch (e, stackTrace) {
-      log('Erreur fetchAnnouncements: $e', stackTrace: stackTrace);
-      rethrow;
+      log('❌ Erreur fetchNextPage: $e', stackTrace: stackTrace);
+    } finally {
+      _isFetchingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// 1. Récupérer la liste des communiqués (Page 1 / Rafraîchissement)
+  Future<void> fetchAnnouncements({bool refresh = false}) async {
+    if (refresh) {
+      _currentPage = 1;
+      _hasMore = true;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final activeService = _service ?? AnnouncementService(token: _token);
+
+      log('📡 Appel fetchAnnouncements() [Page 1]...');
+      // Récupération de la Map renvoyée par AnnouncementService
+      final result = await activeService.getAnnouncements(page: 1);
+
+      // Extraction de la liste et de l'indicateur de suite
+      _announcements = List<Announcement>.from(result['items']);
+      _hasMore = result['hasMore'] ?? false;
+      _currentPage = 1;
+
+      if (_announcements.isNotEmpty) {
+        _latestAnnouncement = _announcements.first;
+      }
+
+      log(
+        '✅ Communiqués chargés : ${_announcements.length} (Plus de pages : $_hasMore)',
+      );
+    } catch (e, stackTrace) {
+      log('❌ Erreur fetchAnnouncements: $e', stackTrace: stackTrace);
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Ajouter en BD
+  /// 2. Ajouter un communiqué
   Future<bool> addAnnouncement({
     required String title,
     required String content,
+    String category = 'general',
+    String targetAudience = 'all',
     bool isUrgent = false,
   }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
     try {
-      log('Sending Token: $_token');
+      final activeService = _service ?? AnnouncementService(token: _token);
 
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: _headers,
-        body: json.encode({
-          'title': title,
-          'content': content,
-          'is_urgent': isUrgent, // Format snake_case pour Laravel
-          'isUrgent': isUrgent, // Support fallback camelCase
-        }),
-      );
+      final newAnnouncement = await activeService.createAnnouncement({
+        'title': title,
+        'content': content,
+        'category': category,
+        'target_audience': targetAudience,
+        'is_urgent': isUrgent,
+      });
 
-      log("POST STATUS CODE : ${response.statusCode}");
-      log("POST RESPONSE BODY : ${response.body}");
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        await fetchAnnouncements();
-        return true;
-      } else {
-        throw Exception('Code HTTP ${response.statusCode}: ${response.body}');
-      }
+      _announcements.insert(0, newAnnouncement);
+      _latestAnnouncement = newAnnouncement;
+      return true;
     } catch (e, stackTrace) {
-      log('Erreur addAnnouncement: $e', stackTrace: stackTrace);
-      rethrow;
+      log('❌ Erreur addAnnouncement: $e', stackTrace: stackTrace);
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// Modifier en BD
+  /// 3. Modifier un communiqué
   Future<bool> updateAnnouncement({
-    required String id,
+    required dynamic id,
     required String title,
     required String content,
-    required bool isUrgent,
+    String category = 'general',
+    String targetAudience = 'all',
+    bool isUrgent = false,
   }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/$id'),
-        headers: _headers,
-        body: json.encode({
-          'title': title,
-          'content': content,
-          'is_urgent': isUrgent,
-          'isUrgent': isUrgent,
-        }),
+      final activeService = _service ?? AnnouncementService(token: _token);
+      final intId = id is int ? id : int.parse(id.toString());
+
+      final updated = await activeService.updateAnnouncement(intId, {
+        'title': title,
+        'content': content,
+        'category': category,
+        'target_audience': targetAudience,
+        'is_urgent': isUrgent,
+      });
+
+      final index = _announcements.indexWhere(
+        (a) => a.id.toString() == id.toString(),
       );
-
-      log('Update Status: ${response.statusCode}');
-      log('Update Response: ${response.body}');
-
-      if (response.statusCode == 200) {
-        await fetchAnnouncements();
-        return true;
-      } else {
-        throw Exception('Code HTTP ${response.statusCode}: ${response.body}');
+      if (index != -1) {
+        _announcements[index] = updated;
       }
+
+      if (_latestAnnouncement?.id.toString() == id.toString()) {
+        _latestAnnouncement = updated;
+      }
+
+      return true;
     } catch (e, stackTrace) {
-      log('Erreur updateAnnouncement: $e', stackTrace: stackTrace);
-      rethrow;
+      log('❌ Erreur updateAnnouncement: $e', stackTrace: stackTrace);
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// Supprimer en BD
-  Future<bool> deleteAnnouncement(String id) async {
+  /// 4. Supprimer un communiqué
+  Future<bool> deleteAnnouncement(dynamic id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/$id'),
-        headers: _headers,
-      );
+      final activeService = _service ?? AnnouncementService(token: _token);
+      final intId = id is int ? id : int.parse(id.toString());
 
-      log('Delete Status: ${response.statusCode}');
+      final success = await activeService.deleteAnnouncement(intId);
 
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        _announcements.removeWhere((item) => item.id == id);
+      if (success) {
+        _announcements.removeWhere(
+          (item) => item.id.toString() == id.toString(),
+        );
+
+        if (_latestAnnouncement?.id.toString() == id.toString()) {
+          _latestAnnouncement = _announcements.isNotEmpty
+              ? _announcements.first
+              : null;
+        }
+
         notifyListeners();
         return true;
-      } else {
-        throw Exception('Code HTTP ${response.statusCode}: ${response.body}');
       }
+      return false;
     } catch (e, stackTrace) {
-      log('Erreur deleteAnnouncement: $e', stackTrace: stackTrace);
-      rethrow;
+      log('❌ Erreur deleteAnnouncement: $e', stackTrace: stackTrace);
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return false;
     }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
   }
 }

@@ -1,111 +1,399 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:vsm_app/provider/announcement_provider.dart';
-import 'announcement_card.dart';
-import 'announcement_form_dialog.dart';
+import 'package:intl/intl.dart';
+import '../provider/announcement_provider.dart';
+import '../models/announcement_model.dart';
 
-class AnnouncementsWidget extends StatelessWidget {
+class AnnouncementsWidget extends StatefulWidget {
   const AnnouncementsWidget({super.key});
 
-  // Couleurs Thème VSM
-  static const Color greenPrimary = Color(0xFF1E5235);
-  static const Color goldAccent = Color(0xFFD4AF37);
-  static const Color darkBg = Color(0xFF0A1E13);
-  static const Color cardBg = Color(0xFF122E1F);
+  @override
+  State<AnnouncementsWidget> createState() => _AnnouncementsWidgetState();
+}
 
-  void _openFormDialog(BuildContext context, {Announcement? announcement}) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AnnouncementFormDialog(
-        parentContext: context,
-        announcement: announcement,
+class _AnnouncementsWidgetState extends State<AnnouncementsWidget> {
+  static const Color greenPrimary = Color(0xFF1E5235);
+  static const Color bordeauxRed = Color(0xFF6B1D2F);
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AnnouncementProvider>().fetchAnnouncements();
+    });
+
+    // Écoute du défilement pour la pagination
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        context.read<AnnouncementProvider>().fetchNextPage();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AnnouncementProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading && provider.announcements.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Center(
+              child: CircularProgressIndicator(color: greenPrimary),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // En-tête avec bouton Nouveau
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => _showAnnouncementModal(context),
+                icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                label: const Text(
+                  'Nouveau communiqué',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: greenPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            if (provider.announcements.isEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                width: double.infinity,
+                child: const Center(
+                  child: Text(
+                    'Aucun communiqué publié pour le moment.',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount:
+                    provider.announcements.length +
+                    (provider.isFetchingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  // Loader en bas de liste lors du chargement de la page suivante
+                  if (index == provider.announcements.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(
+                        child: CircularProgressIndicator(color: greenPrimary),
+                      ),
+                    );
+                  }
+
+                  final item = provider.announcements[index];
+                  return _buildCard(context, item, provider);
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context,
+    Announcement item,
+    AnnouncementProvider provider,
+  ) {
+    final formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(item.createdAt);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    if (item.isUrgent)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: bordeauxRed.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'URGENT',
+                          style: TextStyle(
+                            color: bordeauxRed,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: greenPrimary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item.category.toUpperCase(),
+                        style: const TextStyle(
+                          color: greenPrimary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // Actions : Modifier & Supprimer
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        size: 20,
+                        color: Colors.blueGrey,
+                      ),
+                      onPressed: () =>
+                          _showAnnouncementModal(context, existingItem: item),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () async {
+                        final confirm = await _showConfirmDelete(context);
+                        if (confirm == true) {
+                          await provider.deleteAnnouncement(item.id);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item.title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              item.content,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  formattedDate,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                if (item.targetAudience == 'board')
+                  const Text(
+                    '🔒 Bureau uniquement',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: bordeauxRed,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _confirmDelete(BuildContext context, String id) {
-    showDialog(
+  /// Modal unique servant à la Création ET à la Modification
+  void _showAnnouncementModal(
+    BuildContext context, {
+    Announcement? existingItem,
+  }) {
+    final isEditing = existingItem != null;
+    final titleController = TextEditingController(
+      text: isEditing ? existingItem.title : '',
+    );
+    final contentController = TextEditingController(
+      text: isEditing ? existingItem.content : '',
+    );
+    String category = isEditing ? existingItem.category : 'general';
+    String targetAudience = isEditing ? existingItem.targetAudience : 'all';
+    bool isUrgent = isEditing ? existingItem.isUrgent : false;
+
+    showModalBottomSheet(
       context: context,
-      builder: (dialogContext) {
-        bool isDeleting = false;
-
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: darkBg,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Colors.redAccent, width: 0.8),
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
               ),
-              title: const Text(
-                'Supprimer le communiqué',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: const Text(
-                'Voulez-vous vraiment supprimer ce communiqué ?',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isDeleting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text(
-                    'Annuler',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isEditing
+                          ? 'Modifier le communiqué'
+                          : 'Créer un communiqué',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: greenPrimary,
+                      ),
                     ),
-                  ),
-                  onPressed: isDeleting
-                      ? null
-                      : () async {
-                          setDialogState(() => isDeleting = true);
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Titre',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: contentController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Contenu',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: category,
+                      decoration: const InputDecoration(labelText: 'Catégorie'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'general',
+                          child: Text('Général'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'training',
+                          child: Text('Entraînement'),
+                        ),
+                        DropdownMenuItem(value: 'match', child: Text('Match')),
+                        DropdownMenuItem(
+                          value: 'meeting',
+                          child: Text('Réunion'),
+                        ),
+                      ],
+                      onChanged: (val) => setModalState(() => category = val!),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: targetAudience,
+                      decoration: const InputDecoration(
+                        labelText: 'Audience cible',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('Tout le monde'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'board',
+                          child: Text('Membres du bureau'),
+                        ),
+                      ],
+                      onChanged: (val) =>
+                          setModalState(() => targetAudience = val!),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Urgent'),
+                      activeColor: bordeauxRed,
+                      value: isUrgent,
+                      onChanged: (val) => setModalState(() => isUrgent = val),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: greenPrimary,
+                        minimumSize: const Size.fromHeight(45),
+                      ),
+                      onPressed: () async {
+                        if (titleController.text.isNotEmpty &&
+                            contentController.text.isNotEmpty) {
                           final provider = context.read<AnnouncementProvider>();
-                          final messenger = ScaffoldMessenger.of(context);
-                          final navigator = Navigator.of(dialogContext);
+                          bool success;
 
-                          try {
-                            await provider.deleteAnnouncement(id);
-                            navigator.pop();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Communiqué supprimé'),
-                                backgroundColor: Colors.redAccent,
-                              ),
+                          if (isEditing) {
+                            success = await provider.updateAnnouncement(
+                              id: existingItem.id,
+                              title: titleController.text,
+                              content: contentController.text,
+                              category: category,
+                              targetAudience: targetAudience,
+                              isUrgent: isUrgent,
                             );
-                          } catch (e) {
-                            setDialogState(() => isDeleting = false);
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text('Erreur : $e'),
-                                backgroundColor: Colors.redAccent,
-                              ),
+                          } else {
+                            success = await provider.addAnnouncement(
+                              title: titleController.text,
+                              content: contentController.text,
+                              category: category,
+                              targetAudience: targetAudience,
+                              isUrgent: isUrgent,
                             );
                           }
-                        },
-                  child: isDeleting
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Supprimer'),
+
+                          if (mounted && success) {
+                            Navigator.pop(ctx);
+                          }
+                        }
+                      },
+                      child: Text(
+                        isEditing ? 'Mettre à jour' : 'Publier',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           },
         );
@@ -113,114 +401,26 @@ class AnnouncementsWidget extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AnnouncementProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: CircularProgressIndicator(color: goldAccent),
+  Future<bool?> _showConfirmDelete(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Suppression'),
+        content: const Text('Voulez-vous supprimer ce communiqué ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Supprimer',
+              style: TextStyle(color: bordeauxRed),
             ),
-          );
-        }
-
-        final announcements = provider.announcements;
-
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: goldAccent.withOpacity(0.3), width: 1),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Entête avec bouton de création
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.campaign, color: goldAccent, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Communiqués Officiels',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  InkWell(
-                    onTap: () => _openFormDialog(context),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: greenPrimary,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: goldAccent, width: 0.8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.add, color: goldAccent, size: 16),
-                          SizedBox(width: 4),
-                          Text(
-                            'Publier',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Liste
-              if (announcements.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(
-                    child: Text(
-                      'Aucun communiqué pour le moment',
-                      style: TextStyle(color: Colors.white38, fontSize: 13),
-                    ),
-                  ),
-                )
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: announcements.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(color: Colors.white10, height: 16),
-                  itemBuilder: (context, index) {
-                    final item = announcements[index];
-                    return AnnouncementCard(
-                      announcement: item,
-                      onEdit: () =>
-                          _openFormDialog(context, announcement: item),
-                      onDelete: () => _confirmDelete(context, item.id),
-                    );
-                  },
-                ),
-            ],
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

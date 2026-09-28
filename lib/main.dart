@@ -7,12 +7,13 @@ import 'package:provider/provider.dart';
 // Modèles et Services
 import 'services/api_service.dart';
 import 'services/dashboardService.dart';
+import 'services/AnnouncementService.dart';
 
 // Providers
 import 'provider/auth_provider.dart';
 // import 'provider/UserProvider.dart';
 import 'provider/MatchProvider.dart';
-import 'provider/event_provider.dart';
+import 'provider/coach/event_provider.dart';
 import 'provider/announcement_provider.dart';
 import 'provider/player_dashboard_provider.dart';
 import 'provider/admin_dashboard_provider.dart';
@@ -49,7 +50,7 @@ void main() async {
         // Autres Providers de l'application
         // ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => MatchProvider()),
-        // ChangeNotifierProvider(create: (_) => EventProvider()),
+        ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => PlayerDashboardProvider()),
         ChangeNotifierProvider(create: (_) => AdminDashboardProvider()),
 

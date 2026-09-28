@@ -20,7 +20,6 @@ class _OrdonnancementCenterWidgetState
   @override
   void initState() {
     super.initState();
-    // Charger la liste des décaissements au démarrage
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AdminDashboardProvider>().fetchPendingDisbursements(
         widget.userToken,
@@ -34,7 +33,6 @@ class _OrdonnancementCenterWidgetState
     super.dispose();
   }
 
-  /// Boîte de dialogue pour saisir le motif de rejet
   void _showRejectionDialog(BuildContext context, dynamic expense) {
     _rejectionController.clear();
     showDialog(
@@ -86,7 +84,6 @@ class _OrdonnancementCenterWidgetState
     );
   }
 
-  /// Action d'approbation ou de rejet d'une dépense
   Future<void> _processExpense(int id, String status, {String? reason}) async {
     final provider = context.read<AdminDashboardProvider>();
 
@@ -97,7 +94,6 @@ class _OrdonnancementCenterWidgetState
       rejectionReason: reason,
     );
 
-    // Protection contre l'utilisation de BuildContext si le widget est démonté
     if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
@@ -115,7 +111,6 @@ class _OrdonnancementCenterWidgetState
         ),
       );
 
-      // Rafraîchir les données du dashboard après l'action
       provider.fetchPendingDisbursements(widget.userToken);
     } else {
       messenger.showSnackBar(
@@ -136,24 +131,26 @@ class _OrdonnancementCenterWidgetState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- EN-TÊTE ET TITRE AVANT LA CARTE / LISTE ---
+            // --- EN-TÊTE ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Demandes en attente de validation",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: greenPrimary,
-                    letterSpacing: 0.3,
+                const Expanded(
+                  child: Text(
+                    "Demandes en attente de validation",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: greenPrimary,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
                 if (!provider.isLoadingPending && pendingList.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
+                      horizontal: 10,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade100,
@@ -197,82 +194,129 @@ class _OrdonnancementCenterWidgetState
                 ),
               )
             else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: pendingList.length,
-                itemBuilder: (context, index) {
-                  final item = pendingList[index];
-                  return Card(
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final double width = constraints.maxWidth;
+                  final int crossAxisCount = width > 900
+                      ? 3
+                      : (width > 600 ? 2 : 1);
+
+                  if (crossAxisCount == 1) {
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: pendingList.length,
+                      itemBuilder: (context, index) {
+                        return _buildVerticalCard(pendingList[index]);
+                      },
+                    );
+                  }
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: pendingList.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      childAspectRatio:
+                          1.1, // Aspect ratio adapté pour une disposition verticale (3 niveaux)
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      leading: const CircleAvatar(
-                        backgroundColor: Colors.orangeAccent,
-                        child: Icon(Icons.pending_actions, color: Colors.white),
-                      ),
-                      title: Text(
-                        item['motif'] ??
-                            item['description'] ??
-                            'Décaissement sans motif',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            'Demandé par: ${item['user']?['name'] ?? 'Inconnu'}',
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Montant: ${item['amount']} FCFA',
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 28,
-                            ),
-                            tooltip: 'Approuver',
-                            onPressed: () =>
-                                _processExpense(item['id'], 'approved'),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.cancel,
-                              color: Colors.red,
-                              size: 28,
-                            ),
-                            tooltip: 'Rejeter',
-                            onPressed: () =>
-                                _showRejectionDialog(context, item),
-                          ),
-                        ],
-                      ),
-                    ),
+                    itemBuilder: (context, index) {
+                      return _buildVerticalCard(pendingList[index]);
+                    },
                   );
                 },
               ),
           ],
         );
       },
+    );
+  }
+
+  /// Carte organisée en 1 colonne de 3 lignes : Icône -> Texte -> Boutons
+  Widget _buildVerticalCard(dynamic item) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // --- LIGNE 1 : Icône en haut ---
+            const CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.orangeAccent,
+              child: Icon(Icons.pending_actions, color: Colors.white, size: 24),
+            ),
+
+            const SizedBox(height: 8),
+
+            // --- LIGNE 2 : Bloc de Texte au milieu ---
+            Column(
+              children: [
+                Text(
+                  item['motif'] ??
+                      item['description'] ??
+                      'Décaissement sans motif',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Demandé par: ${item['user']?['name'] ?? 'Inconnu'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Montant: ${item['amount']} FCFA',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // --- LIGNE 3 : Icônes / Boutons d'action en bas ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 32,
+                  ),
+                  tooltip: 'Approuver',
+                  onPressed: () => _processExpense(item['id'], 'approved'),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  icon: const Icon(Icons.cancel, color: Colors.red, size: 32),
+                  tooltip: 'Rejeter',
+                  onPressed: () => _showRejectionDialog(context, item),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

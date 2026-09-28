@@ -28,6 +28,7 @@ class CommunicationTabWidget extends StatelessWidget {
 
           // Intégration du composant des annonces et communiqués
           AnnouncementsWidget(),
+
           SizedBox(height: 16),
         ],
       ),
