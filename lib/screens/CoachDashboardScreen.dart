@@ -3,6 +3,8 @@ import 'package:vsm_app/widgets/coach/overview_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/tactics_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/squad_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/finances_com_tab_widget.dart';
+// import 'package:vsm_app/provider/auth_provider.dart';
+// import 'package:vsm_app/models/event_model.dart';
 
 class CoachDashboardScreen extends StatelessWidget {
   const CoachDashboardScreen({super.key});
@@ -104,7 +106,7 @@ class CoachDashboardScreen extends StatelessWidget {
             OverviewTabWidget(),
 
             // 2. Onglet Tactique (Composition terrain 4-3-3, consignes)
-            TacticsTabWidget(),
+            TacticalTabWidget(),
 
             // 3. Onglet Effectif (Présence, convoqués, infirmerie)
             SquadTabWidget(),
