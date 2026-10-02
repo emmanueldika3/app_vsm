@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../provider/auth_provider.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
+import 'package:vsm_app/models/event_model.dart';
 // Importez vos autres dashboards selon les rôles
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 // import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
@@ -80,33 +81,40 @@ class LoginController {
     }
   }
 
-  // 🔀 REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
+  //  REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
   static void _navigateToRoleDashboard(BuildContext context, UserRole role) {
     Widget destinationScreen;
 
     switch (role) {
       case UserRole.admin:
-        // TODO: Remplacer par AdminDashboardScreen() une fois créé
-        destinationScreen = AdminDashboardScreen();
+        destinationScreen = const AdminDashboardScreen();
         break;
 
       case UserRole.treasurer:
         // TODO: Remplacer par TreasurerDashboardScreen()
-        destinationScreen = PlayerDashboardScreen();
+        destinationScreen = const PlayerDashboardScreen();
         break;
 
       case UserRole.president:
         // TODO: Remplacer par PresidentDashboardScreen()
-        destinationScreen = PlayerDashboardScreen();
+        destinationScreen = const PlayerDashboardScreen();
         break;
 
       case UserRole.coach:
-        destinationScreen = CoachDashboardScreen();
+        // Création d'un événement par défaut pour éviter l'erreur de paramètre requis
+        final defaultEvent = EventModel(
+          id: 1,
+          title: "Prochain Match / Entraînement",
+          type: "match",
+          eventDateTime: DateTime.now(),
+          venue: "Stade VSM",
+        );
+        destinationScreen = CoachDashboardScreen(event: defaultEvent);
         break;
 
       case UserRole.player:
       default:
-        destinationScreen = PlayerDashboardScreen();
+        destinationScreen = const PlayerDashboardScreen();
         break;
     }
 

@@ -6,6 +6,9 @@ import 'package:vsm_app/widgets/vsm_app_bar.dart';
 import 'package:vsm_app/widgets/MemberProfileCard.dart';
 import 'package:vsm_app/widgets/custom_bottom_navigation_bar.dart';
 
+// Import du modèle EventModel requis par CoachDashboardScreen
+import 'package:vsm_app/models/event_model.dart';
+
 // Écrans d'accueil par rôle
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 import 'package:vsm_app/screens/CoachDashboardScreen.dart';
@@ -57,7 +60,15 @@ class _MainLayoutState extends State<MainLayout> {
     if (roleStr.contains('coach') ||
         roleStr.contains('encadreur') ||
         roleStr.contains('entraineur')) {
-      return const CoachDashboardScreen();
+      // Création d'un événement par défaut ou récupération de l'événement en cours
+      final defaultEvent = EventModel(
+        id: 1,
+        title: "Prochain Match / Entraînement",
+        type: "match",
+        eventDateTime: DateTime.now(),
+        venue: "Stade VSM",
+      );
+      return CoachDashboardScreen(event: defaultEvent);
     }
 
     if (roleStr.contains('player') ||

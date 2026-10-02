@@ -149,7 +149,7 @@ class _OverviewTabWidgetState extends State<OverviewTabWidget> {
             AnnouncementOverviewCard(
               onTap: () {
                 // Navigation vers la liste complète des communiqués
-                Navigator.pushNamed(context, '/announcements');
+                Navigator.pushNamed(context, '/announcements/latest');
               },
             ),
           ],

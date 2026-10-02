@@ -3,11 +3,12 @@ import 'package:vsm_app/widgets/coach/overview_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/tactics_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/squad_tab_widget.dart';
 import 'package:vsm_app/widgets/coach/finances_com_tab_widget.dart';
-// import 'package:vsm_app/provider/auth_provider.dart';
-// import 'package:vsm_app/models/event_model.dart';
+import 'package:vsm_app/models/event_model.dart';
 
 class CoachDashboardScreen extends StatelessWidget {
-  const CoachDashboardScreen({super.key});
+  final EventModel event; // Reçoit l'événement sélectionné
+
+  const CoachDashboardScreen({super.key, required this.event});
 
   // Couleurs de la charte VSM FC
   static const Color greenPrimary = Color(0xFF1E5235);
@@ -24,11 +25,10 @@ class CoachDashboardScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: greenPrimary,
           elevation: 2,
-          // Hauteur réduite pour maximiser l'espace du contenu
           toolbarHeight: 46,
-          title: const Text(
-            "Tableau de bord Coach",
-            style: TextStyle(
+          title: Text(
+            "Tableau de bord Coach - ${event.title}",
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -48,7 +48,6 @@ class CoachDashboardScreen extends StatelessWidget {
               ),
               labelPadding: const EdgeInsets.symmetric(horizontal: 12),
               tabs: const [
-                // 1. Vue d'ensemble
                 Tab(
                   height: 36,
                   child: Row(
@@ -60,7 +59,6 @@ class CoachDashboardScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 2. Tactique
                 Tab(
                   height: 36,
                   child: Row(
@@ -72,7 +70,6 @@ class CoachDashboardScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 3. Effectif
                 Tab(
                   height: 36,
                   child: Row(
@@ -84,7 +81,6 @@ class CoachDashboardScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 4. Finances & Com
                 Tab(
                   height: 36,
                   child: Row(
@@ -100,19 +96,19 @@ class CoachDashboardScreen extends StatelessWidget {
             ),
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            // 1. Onglet Vue d'ensemble (Prochain match, alertes, statut global)
-            OverviewTabWidget(),
+            // 1. Vue d'ensemble
+            const OverviewTabWidget(),
 
-            // 2. Onglet Tactique (Composition terrain 4-3-3, consignes)
-            TacticalTabWidget(),
+            // 2. Tactique
+            const TacticalTabWidget(),
 
-            // 3. Onglet Effectif (Présence, convoqués, infirmerie)
-            SquadTabWidget(),
+            // 3. Effectif (Transmission de l'événement au SquadTabWidget)
+            SquadTabWidget(event: event),
 
-            // 4. Onglet Finances & Com (Suivi cotisations, envoi communiqués)
-            FinancesComTabWidget(),
+            // 4. Finances & Com
+            const FinancesComTabWidget(),
           ],
         ),
       ),
