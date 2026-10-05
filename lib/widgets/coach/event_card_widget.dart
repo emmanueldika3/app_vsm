@@ -109,7 +109,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
     );
   }
 
-  // --- MENU CENTRALISÉ SOUS FORME DE PETIT RECTANGLE ---
+  // --- MENU CENTRALISÉ SOUS FORME DE RECTANGLE ---
   void _showAdminMenu(BuildContext context) {
     showDialog(
       context: context,
@@ -133,7 +133,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  // 1. Bouton Ajouter (Vert VSM)
                   _buildActionIconButton(
                     icon: Icons.add_circle_outline,
                     label: "Ajouter",
@@ -143,7 +142,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       _openEventFormDialog(context);
                     },
                   ),
-                  // 2. Bouton Modifier (Or/Orange)
                   _buildActionIconButton(
                     icon: Icons.edit_outlined,
                     label: "Modifier",
@@ -153,7 +151,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       _openEventFormDialog(context, eventToEdit: widget.event);
                     },
                   ),
-                  // 3. Bouton Annuler (Bordeaux)
                   _buildActionIconButton(
                     icon: Icons.cancel_outlined,
                     label: "Annuler",
@@ -189,7 +186,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+                color: color.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 22),
@@ -255,7 +252,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                 ],
               ),
             ),
-
             if (widget.isCoachOrAdmin)
               IconButton(
                 icon: const Icon(
@@ -285,13 +281,13 @@ class _EventCardWidgetState extends State<EventCardWidget> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: Colors.black.withOpacity(0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
               border: Border.all(
-                color: goldAccent.withValues(alpha: 0.6),
+                color: goldAccent.withOpacity(0.6),
                 width: 1.5,
               ),
             ),
@@ -372,7 +368,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                           ],
                         ),
                       ),
-
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 8.0),
                         child: Text(
@@ -385,7 +380,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                           ),
                         ),
                       ),
-
                       Expanded(
                         child: Column(
                           children: [
@@ -429,7 +423,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       horizontal: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
+                      color: Colors.black.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.white12),
                     ),
@@ -591,9 +585,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
-              color: isSelected
-                  ? Colors.white
-                  : activeColor.withValues(alpha: 0.5),
+              color: isSelected ? Colors.white : activeColor.withOpacity(0.5),
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -612,12 +604,15 @@ class _EventCardWidgetState extends State<EventCardWidget> {
             color: isSelected ? activeTextColor : activeColor,
           ),
           const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? activeTextColor : Colors.white70,
-              fontSize: 10.5,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isSelected ? activeTextColor : Colors.white70,
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -774,11 +769,14 @@ class _EventFormDialogState extends State<_EventFormDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Date : ${_selectedDateTime.day}/${_selectedDateTime.month}/${_selectedDateTime.year} à ${_selectedDateTime.hour}h${_selectedDateTime.minute.toString().padLeft(2, '0')}",
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      "Date : ${_selectedDateTime.day}/${_selectedDateTime.month}/${_selectedDateTime.year} à ${_selectedDateTime.hour}h${_selectedDateTime.minute.toString().padLeft(2, '0')}",
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   TextButton.icon(
