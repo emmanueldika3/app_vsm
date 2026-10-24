@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:vsm_app/models/event_model.dart';
+import 'package:vsm_app/provider/coach/event_provider.dart';
+import 'package:vsm_app/provider/auth_provider.dart';
 
 class EventCardWidget extends StatefulWidget {
   final EventModel event;
   final VoidCallback? onTap;
   final Function(String status)? onPresenceChanged;
   final bool isCoachOrAdmin;
-  final Function(Map<String, dynamic> eventData)? onSaveEvent;
-  final VoidCallback? onCancelEvent;
 
   const EventCardWidget({
     super.key,
@@ -16,8 +17,6 @@ class EventCardWidget extends StatefulWidget {
     this.onTap,
     this.onPresenceChanged,
     this.isCoachOrAdmin = false,
-    this.onSaveEvent,
-    this.onCancelEvent,
   });
 
   @override
@@ -67,27 +66,63 @@ class _EventCardWidgetState extends State<EventCardWidget> {
     widget.onPresenceChanged?.call(statusKey);
   }
 
-  // --- OUVERTURE DU FORMULAIRE EN DIALOGUE ---
+  // --- OUVERTURE DU FORMULAIRE DE CRÉATION / MODIFICATION ---
   void _openEventFormDialog(BuildContext context, {EventModel? eventToEdit}) {
     showDialog(
       context: context,
       builder: (ctx) => _EventFormDialog(
         eventToEdit: eventToEdit,
-        onSubmit: (eventData) {
-          widget.onSaveEvent?.call(eventData);
+        onSubmit: (eventData) async {
+          // Récupération instantanée du token depuis l'AuthProvider
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
+          final eventProvider = Provider.of<EventProvider>(
+            context,
+            listen: false,
+          );
+
+          final String? token = authProvider.token; // Token récupéré du login
+          bool success = false;
+
+          if (eventToEdit == null) {
+            success = await eventProvider.createEvent(eventData, token: token);
+          } else {
+            success = await eventProvider.updateEvent(
+              eventToEdit.id,
+              eventData,
+              token: token,
+            );
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  success
+                      ? (eventToEdit == null
+                            ? "Événement créé avec succès !"
+                            : "Événement mis à jour avec succès !")
+                      : "Erreur lors de l'enregistrement de l'événement.",
+                ),
+                backgroundColor: success ? greenPrimary : bordeauxRed,
+              ),
+            );
+          }
         },
       ),
     );
   }
 
-  // Boîte de dialogue de confirmation pour l'annulation
+  // --- CONFIRMATION DE SUPPRESSION (ANNULATION) ---
   void _confirmCancelEvent(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirmer l\'annulation'),
-        content: const Text('Voulez-vous vraiment annuler cet événement ?'),
+        title: const Text('Confirmer la suppression'),
+        content: const Text('Voulez-vous vraiment supprimer cet événement ?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -95,12 +130,39 @@ class _EventCardWidgetState extends State<EventCardWidget> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: bordeauxRed),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              widget.onCancelEvent?.call();
+
+              // Récupération du token depuis l'AuthProvider pour la suppression
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              final eventProvider = Provider.of<EventProvider>(
+                context,
+                listen: false,
+              );
+
+              bool success = await eventProvider.deleteEvent(
+                widget.event.id,
+                token: authProvider.token,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Événement supprimé avec succès."
+                          : "Erreur lors de la suppression.",
+                    ),
+                    backgroundColor: success ? greenPrimary : bordeauxRed,
+                  ),
+                );
+              }
             },
             child: const Text(
-              'Oui, annuler',
+              'Oui, supprimer',
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -109,7 +171,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
     );
   }
 
-  // --- MENU CENTRALISÉ SOUS FORME DE RECTANGLE ---
+  // --- MENU ADMIN ---
   void _showAdminMenu(BuildContext context) {
     showDialog(
       context: context,
@@ -225,7 +287,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // --- TITRE DE SECTION AVEC MENU 3 POINTS (COACH/ADMIN) ---
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -263,10 +324,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
               ),
           ],
         ),
-
         const SizedBox(height: 8),
-
-        // --- CARTE DE L'ÉVÉNEMENT ---
         InkWell(
           onTap: widget.onTap,
           borderRadius: BorderRadius.circular(16),
@@ -332,7 +390,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -414,9 +471,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
-
                   Container(
                     padding: const EdgeInsets.symmetric(
                       vertical: 8,
@@ -452,9 +507,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
                   Row(
                     children: [
                       Expanded(
@@ -506,13 +559,11 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                       ),
                     ],
                   ),
-
                   const Divider(
                     color: Colors.white24,
                     height: 20,
                     thickness: 1,
                   ),
-
                   const Text(
                     "VOTRE PRÉSENCE",
                     style: TextStyle(
@@ -669,6 +720,7 @@ class _EventFormDialogState extends State<_EventFormDialog> {
   late TextEditingController _awayTeamController;
   late TextEditingController _venueController;
   late DateTime _selectedDateTime;
+  String _selectedType = 'match';
 
   @override
   void initState() {
@@ -685,6 +737,7 @@ class _EventFormDialogState extends State<_EventFormDialog> {
     _venueController = TextEditingController(
       text: widget.eventToEdit?.venue ?? '',
     );
+    _selectedType = widget.eventToEdit?.type ?? 'match';
     _selectedDateTime =
         widget.eventToEdit?.eventDateTime ??
         DateTime.now().add(const Duration(days: 3));
@@ -741,10 +794,26 @@ class _EventFormDialogState extends State<_EventFormDialog> {
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
-                  labelText: 'Titre (ex: Match, Entraînement)',
+                  labelText: 'Titre (ex: Match de championnat)',
                 ),
                 validator: (val) =>
                     val == null || val.isEmpty ? 'Champ requis' : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedType,
+                items: const [
+                  DropdownMenuItem(value: 'match', child: Text('Match')),
+                  DropdownMenuItem(
+                    value: 'training',
+                    child: Text('Entraînement'),
+                  ),
+                ],
+                onChanged: (val) =>
+                    setState(() => _selectedType = val ?? 'match'),
+                decoration: const InputDecoration(
+                  labelText: 'Type d\'événement',
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -771,7 +840,7 @@ class _EventFormDialogState extends State<_EventFormDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      "Date : ${_selectedDateTime.day}/${_selectedDateTime.month}/${_selectedDateTime.year} à ${_selectedDateTime.hour}h${_selectedDateTime.minute.toString().padLeft(2, '0')}",
+                      "Date : ${_selectedDateTime.day.toString().padLeft(2, '0')}/${_selectedDateTime.month.toString().padLeft(2, '0')}/${_selectedDateTime.year} à ${_selectedDateTime.hour.toString().padLeft(2, '0')}h${_selectedDateTime.minute.toString().padLeft(2, '0')}",
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 11,
@@ -804,13 +873,18 @@ class _EventFormDialogState extends State<_EventFormDialog> {
           ),
           onPressed: () {
             if (_formKey.currentState!.validate()) {
+              final formattedDateTime =
+                  "${_selectedDateTime.year}-${_selectedDateTime.month.toString().padLeft(2, '0')}-${_selectedDateTime.day.toString().padLeft(2, '0')} ${_selectedDateTime.hour.toString().padLeft(2, '0')}:${_selectedDateTime.minute.toString().padLeft(2, '0')}:00";
+
               final data = {
                 'title': _titleController.text,
-                'homeTeam': _homeTeamController.text,
-                'awayTeam': _awayTeamController.text,
+                'type': _selectedType,
+                'home_team': _homeTeamController.text,
+                'away_team': _awayTeamController.text,
                 'venue': _venueController.text,
-                'eventDateTime': _selectedDateTime.toIso8601String(),
+                'event_date_time': formattedDateTime,
               };
+
               widget.onSubmit(data);
               Navigator.pop(context);
             }

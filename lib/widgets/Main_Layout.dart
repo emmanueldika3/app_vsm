@@ -76,7 +76,14 @@ class _MainLayoutState extends State<MainLayout> {
         roleStr.contains('veteran') ||
         roleStr.contains('treasurer') ||
         roleStr.contains('tresorier')) {
-      return const PlayerDashboardScreen();
+      final defaultEvent = EventModel(
+        id: 1,
+        title: "Prochain Match / Entraînement",
+        type: "match",
+        eventDateTime: DateTime.now(),
+        venue: "Stade VSM",
+      );
+      return PlayerDashboardScreen(event: defaultEvent);
     }
 
     return const HomeScreen();

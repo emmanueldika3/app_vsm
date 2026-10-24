@@ -1,19 +1,77 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vsm_app/models/squad_member.dart';
 
 class MemberCard extends StatelessWidget {
   final SquadMember member;
+  final int eventId;
   final bool isUncertain;
   final VoidCallback onTap;
-  final Function(String newStatus)? onStatusChanged;
+  final VoidCallback? onPresenceUpdated;
 
   const MemberCard({
     Key? key,
     required this.member,
+    required this.eventId,
     this.isUncertain = false,
     required this.onTap,
-    this.onStatusChanged,
+    this.onPresenceUpdated,
   }) : super(key: key);
+
+  /// Méthode d'appel de l'API Laravel pour modifier le statut du joueur par le coach
+  Future<void> _updateCoachPresence(
+    BuildContext context,
+    String newStatus,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+
+      // Remplace par ton URL de base API ou utilise ta variable globale
+      const String baseUrl = 'http://127.0.0.1:8000/api';
+      final url = Uri.parse('$baseUrl/events/$eventId/presences/${member.id}');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'status': newStatus, // 'present' ou 'absent'[cite: 2]
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Statut de ${member.name} mis à jour : $newStatus'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Notifier le composant parent pour recharger l'événement et le banc de touche
+        if (onPresenceUpdated != null) {
+          onPresenceUpdated!();
+        }
+      } else {
+        throw Exception(
+          'Échec de la mise à jour (code ${response.statusCode})',
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur : ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +89,7 @@ class MemberCard extends StatelessWidget {
           padding: const EdgeInsets.all(12.0),
           child: Row(
             children: [
-              // Numéro du maillot ou avatar
+              // Numéro du maillot / avatar du joueur
               Container(
                 width: 36,
                 height: 36,
@@ -51,7 +109,7 @@ class MemberCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Informations du joueur (Nom, Poste, Stats)
+              // Informations du membre (Nom, Poste, Stats)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,8 +130,8 @@ class MemberCard extends StatelessWidget {
                 ),
               ),
 
-              // Si le joueur est incertain, on affiche les boutons de validation pour le coach
-              if (isUncertain && onStatusChanged != null) ...[
+              // Boutons d'action pour le coach si le membre est incertain
+              if (isUncertain) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -83,7 +141,7 @@ class MemberCard extends StatelessWidget {
                       padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.check_circle, color: greenPrimary),
                       tooltip: "Marquer présent",
-                      onPressed: () => onStatusChanged!("present"),
+                      onPressed: () => _updateCoachPresence(context, "present"),
                     ),
                     // Bouton Valider Absent
                     IconButton(
@@ -91,12 +149,11 @@ class MemberCard extends StatelessWidget {
                       padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.cancel, color: bordeauxRed),
                       tooltip: "Marquer absent",
-                      onPressed: () => onStatusChanged!("absent"),
+                      onPressed: () => _updateCoachPresence(context, "absent"),
                     ),
                   ],
                 ),
               ] else ...[
-                // Simple flèche ou indicateur visuel au bout si ce n'est pas incertain
                 const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
               ],
             ],

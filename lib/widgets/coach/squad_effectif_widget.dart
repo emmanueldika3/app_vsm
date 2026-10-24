@@ -25,14 +25,19 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
   @override
   void initState() {
     super.initState();
-    _squadFuture = _fetchUpcomingEventAndPresences();
+    _loadData();
+  }
+
+  void _loadData() {
+    setState(() {
+      _squadFuture = _fetchUpcomingEventAndPresences();
+    });
   }
 
   String _getApiBaseUrl() {
     if (kIsWeb) {
       return 'http://127.0.0.1:8000/api';
     } else if (Platform.isAndroid) {
-      // Utilisez 10.0.2.2 pour l'émulateur Android par défaut, ou votre IP fixe
       return 'http://10.0.2.2:8000/api';
     } else {
       return 'http://127.0.0.1:8000/api';
@@ -94,35 +99,6 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
     }
   }
 
-  Future<void> _updateUncertainStatus(
-    SquadMember member,
-    String newStatus,
-  ) async {
-    if (_currentEventId == null) return;
-
-    setState(() {
-      member.status = newStatus;
-    });
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-      final baseUrl = _getApiBaseUrl();
-
-      await http.post(
-        Uri.parse('$baseUrl/events/$_currentEventId/presences/${member.id}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode({'status': newStatus}),
-      );
-    } catch (e) {
-      debugPrint("Erreur mise à jour statut : $e");
-    }
-  }
-
   void _showMemberDetails(BuildContext context, SquadMember member) {
     showModalBottomSheet(
       context: context,
@@ -152,7 +128,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
         if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: EdgeInsets.all(20.0),
               child: Text(
                 "Impossible de charger l'effectif.\n\nDétails : ${snapshot.error}",
                 style: const TextStyle(color: Colors.red, fontSize: 13),
@@ -164,7 +140,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
 
         final members = snapshot.data ?? [];
 
-        if (members.isEmpty) {
+        if (members.isEmpty || _currentEventId == null) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(20.0),
@@ -190,16 +166,18 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
               title: "Incertains",
               color: Colors.orange,
               members: uncertains,
+              eventId: _currentEventId!,
               isUncertain: true,
               onMemberTap: (member) => _showMemberDetails(context, member),
-              onStatusChanged: (member, newStatus) =>
-                  _updateUncertainStatus(member, newStatus),
+              onPresenceUpdated: () =>
+                  _loadData(), // Recharge automatiquement les listes et le banc
             ),
             const SizedBox(height: 16),
             SquadSection(
               title: "Présents",
               color: greenPrimary,
               members: presents,
+              eventId: _currentEventId!,
               onMemberTap: (member) => _showMemberDetails(context, member),
             ),
             const SizedBox(height: 16),
@@ -207,6 +185,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
               title: "Absents",
               color: bordeauxRed,
               members: absents,
+              eventId: _currentEventId!,
               onMemberTap: (member) => _showMemberDetails(context, member),
             ),
           ],

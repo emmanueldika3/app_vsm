@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'tactical_field_widget.dart';
 import 'presentplayersBench.dart';
 import 'package:vsm_app/models/prensentPlayers.dart';
@@ -18,6 +22,8 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
   static const Color goldAccent = Color(0xFFD4AF37);
 
   String _selectedFormation = "4-3-3";
+  bool _isLoading = false;
+
   final List<String> _formations = [
     "4-3-3",
     "4-4-2",
@@ -29,7 +35,18 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
   // État centralisé des joueurs positionnés sur le terrain
   final Map<String, PresentPlayer> _assignedPlayers = {};
 
-  // Changement de système intelligent sans perte totale des joueurs
+  // Détermination dynamique de l'URL de base selon la plateforme
+  String _getBaseUrl() {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api';
+    }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.52.90.145:8000/api';
+    }
+    return 'http://127.0.0.1:8000/api';
+  }
+
+  // Changement de système intelligent sans perte totale des joueurs[cite: 1]
   void _handleFormationChange(String? newFormation) {
     if (newFormation == null || newFormation == _selectedFormation) return;
 
@@ -131,18 +148,95 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
     });
   }
 
-  // Fonction de Cleanup : ramène tous les pions au banc d'un clic
+  // Fonction de Cleanup[cite: 1]
   void _clearField() {
     setState(() {
       _assignedPlayers.clear();
     });
   }
 
+  // Fonction pour publier / mettre en ligne la tactique avec authentification dynamique
+  Future<void> _publishTactics(int eventId) async {
+    if (eventId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Aucun événement valide sélectionné."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Récupération sécurisée du token stocké lors de la connexion
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString(
+        'auth_token',
+      ); // Assurez-vous d'utiliser la bonne clé
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          "Utilisateur non authentifié. Veuillez vous reconnecter.",
+        );
+      }
+
+      // 2. Transformation des titulaires pour l'API
+      final List<Map<String, dynamic>> startingXi = _assignedPlayers.entries
+          .map((entry) {
+            return {
+              'position': entry.key,
+              'id': entry.value.id,
+              'name': entry.value.name,
+              'number': entry.value.number,
+            };
+          })
+          .toList();
+
+      // 3. Envoi de la requête POST vers Laravel avec l'URL dynamique
+      final String baseUrl = _getBaseUrl();
+      final response = await http.post(
+        Uri.parse('$baseUrl/coach/events/$eventId/tactics/publish'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'formation': _selectedFormation,
+          'starting_xi': startingXi,
+          'substitutes': [],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Dispositif mis en ligne avec succès !"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception("Erreur ${response.statusCode}: ${response.body}");
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final eventProvider = Provider.of<EventProvider>(context);
     final eventId = eventProvider.upcomingEvent?.id ?? 0;
-    const String token = "";
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
@@ -168,7 +262,7 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
               ),
               Row(
                 children: [
-                  // Bouton Cleanup (Interrupteur / Reset rapide)
+                  // Bouton Cleanup (Reset rapide)
                   Tooltip(
                     message: "Renvoyer tous les joueurs au banc",
                     child: InkWell(
@@ -193,7 +287,7 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Dropdown Formations
+                  // Dropdown Formations[cite: 1]
                   Container(
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -228,6 +322,45 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
                 ],
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+
+          // --- BOUTON DE MISE EN LIGNE / PUBLICATION ---
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : () => _publishTactics(eventId),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.cloud_upload,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+              label: Text(
+                _isLoading ? "Publication..." : "Mettre en ligne / Publier",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: greenPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: goldAccent, width: 0.8),
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 6),
 
@@ -280,7 +413,8 @@ class _TacticalTabWidgetState extends State<TacticalTabWidget> {
             ),
             child: PresentPlayersBench(
               eventId: eventId,
-              token: token,
+              token:
+                  "", // Géré en interne ou via SharedPreferences si nécessaire
               assignedPlayers: _assignedPlayers.values.toList(),
             ),
           ),

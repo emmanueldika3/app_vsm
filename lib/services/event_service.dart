@@ -87,7 +87,7 @@ class EventProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Met à jour la présence (compatible route publique avec `userId` ou protégée avec `token`)
+  /// Met à jour la présence
   Future<bool> updatePresence(
     String newStatus, {
     int? userId,

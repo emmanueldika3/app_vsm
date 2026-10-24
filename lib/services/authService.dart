@@ -6,7 +6,7 @@ import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
 import 'package:vsm_app/models/event_model.dart';
 // Importez vos autres dashboards selon les rôles
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
-// import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
+import 'package:vsm_app/provider/coach/event_provider.dart';
 // import 'package:vsm_app/screens/PresidentDashboardScreen.dart';
 import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 
@@ -83,6 +83,13 @@ class LoginController {
 
   //  REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
   static void _navigateToRoleDashboard(BuildContext context, UserRole role) {
+    final eventProvider = Provider.of<EventProvider>(context, listen: false);
+
+    // Récupération de l'événement dynamique depuis le provider
+    final currentEvent = eventProvider.upcomingEvent;
+
+    // Si aucun événement n'est présent, on gère l'écran selon le type attendu,
+    // mais en utilisant les propriétés de l'événement récupéré s'il existe.
     Widget destinationScreen;
 
     switch (role) {
@@ -92,29 +99,20 @@ class LoginController {
 
       case UserRole.treasurer:
         // TODO: Remplacer par TreasurerDashboardScreen()
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
         break;
 
       case UserRole.president:
-        // TODO: Remplacer par PresidentDashboardScreen()
-        destinationScreen = const PlayerDashboardScreen();
+        // TODO: Remplacer
+        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
         break;
 
       case UserRole.coach:
-        // Création d'un événement par défaut pour éviter l'erreur de paramètre requis
-        final defaultEvent = EventModel(
-          id: 1,
-          title: "Prochain Match / Entraînement",
-          type: "match",
-          eventDateTime: DateTime.now(),
-          venue: "Stade VSM",
-        );
-        destinationScreen = CoachDashboardScreen(event: defaultEvent);
+        destinationScreen = CoachDashboardScreen(event: currentEvent!);
         break;
 
       case UserRole.player:
-      default:
-        destinationScreen = const PlayerDashboardScreen();
+        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
         break;
     }
 

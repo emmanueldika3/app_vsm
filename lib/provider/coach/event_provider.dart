@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:vsm_app/models/event_model.dart';
+import 'package:vsm_app/models/prensentPlayers.dart';
 
 enum EventStatus { initial, loading, loaded, error }
 
@@ -11,6 +12,10 @@ class EventProvider with ChangeNotifier {
   EventModel? _upcomingEvent;
   EventStatus _status = EventStatus.initial;
   String _errorMessage = '';
+
+  // --- Champs pour le statut tactique et le joueur connecté ---
+  String _myStatus = "Non identifié";
+  PresentPlayer? _connectedPlayer;
 
   /// Gestion dynamique de l'URL de base selon la plateforme
   static String get baseUrl {
@@ -33,7 +38,18 @@ class EventProvider with ChangeNotifier {
   bool get hasError => _status == EventStatus.error;
   bool get hasEvent => _upcomingEvent != null;
 
-  /// Récupère le prochain événement/match depuis le backend[cite: 3]
+  // Getters exposés
+  String get myStatus => _myStatus;
+  PresentPlayer? get connectedPlayer => _connectedPlayer;
+
+  /// Helper pour nettoyer les URLs et éviter les redirections 301 (POST -> GET)
+  Uri _buildUri(String path) {
+    final rawUrl = '$baseUrl/$path';
+    final cleanUrl = rawUrl.replaceAll(RegExp(r'(?<!:)/+'), '/');
+    return Uri.parse(cleanUrl);
+  }
+
+  /// Récupère le prochain événement/match depuis le backend[cite: 2]
   Future<void> fetchUpcomingEvent({String? token}) async {
     _status = EventStatus.loading;
     _errorMessage = '';
@@ -42,11 +58,12 @@ class EventProvider with ChangeNotifier {
     try {
       final response = await http
           .get(
-            Uri.parse('$baseUrl/events/upcoming'),
+            _buildUri('events/upcoming'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
             },
           )
           .timeout(const Duration(seconds: 10));
@@ -59,6 +76,16 @@ class EventProvider with ChangeNotifier {
         } else {
           _upcomingEvent = null;
         }
+
+        // --- Récupération du statut et du joueur connecté renvoyés par Laravel[cite: 2] ---
+        _myStatus = data['my_status'] ?? "Non identifié";
+
+        if (data['connected_player'] != null) {
+          _connectedPlayer = PresentPlayer.fromJson(data['connected_player']);
+        } else {
+          _connectedPlayer = null;
+        }
+
         _status = EventStatus.loaded;
       } else {
         _status = EventStatus.error;
@@ -79,119 +106,195 @@ class EventProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Créer un nouvel événement en base de données
+  /// Met à jour la présence (compatible route publique avec `userId` ou protégée avec `token`)[cite: 2]
+  Future<bool> updatePresence(
+    String newStatus, {
+    int? userId,
+    String? token,
+  }) async {
+    if (_upcomingEvent == null) return false;
+
+    final oldStatus = _upcomingEvent!.userPresence ?? 'none';
+    if (oldStatus == newStatus) return true;
+
+    int present = _upcomingEvent!.presentCount;
+    int uncertain = _upcomingEvent!.uncertainCount;
+    int absent = _upcomingEvent!.absentCount;
+
+    // 1. Mise à jour des compteurs
+    switch (oldStatus) {
+      case 'present':
+        if (present > 0) present--;
+        break;
+      case 'uncertain':
+        if (uncertain > 0) uncertain--;
+        break;
+      case 'absent':
+        if (absent > 0) absent--;
+        break;
+    }
+
+    switch (newStatus) {
+      case 'present':
+        present++;
+        break;
+      case 'uncertain':
+        uncertain++;
+        break;
+      case 'absent':
+        absent++;
+        break;
+    }
+
+    final previousEvent = _upcomingEvent;
+
+    // 2. Mise à jour optimiste de l'UI
+    _upcomingEvent = _upcomingEvent!.copyWith(
+      userPresence: newStatus,
+      presentCount: present,
+      uncertainCount: uncertain,
+      absentCount: absent,
+    );
+    notifyListeners();
+
+    // 3. Envoi de la requête POST
+    try {
+      final response = await http
+          .post(
+            _buildUri('events/${_upcomingEvent!.id}/presence'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+            body: json.encode({
+              'status': newStatus,
+              if (userId != null) 'user_id': userId,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['data'] != null) {
+          _upcomingEvent = EventModel.fromJson(data['data']);
+          notifyListeners();
+        }
+        return true;
+      } else {
+        debugPrint('Erreur serveur (${response.statusCode}):${response.body}');
+        _upcomingEvent = previousEvent;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Exception updatePresence: $e');
+      _upcomingEvent = previousEvent;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// --- CRÉER UN ÉVÉNEMENT ---
   Future<bool> createEvent(
     Map<String, dynamic> eventData, {
     String? token,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/events'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: json.encode(eventData),
-      );
+      final response = await http
+          .post(
+            _buildUri('events'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+            body: json.encode(eventData),
+          )
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         await fetchUpcomingEvent(token: token);
         return true;
       } else {
-        _errorMessage = 'Erreur lors de la création (${response.statusCode})';
-        notifyListeners();
+        debugPrint(
+          'Erreur création événement (${response.statusCode}): ${response.body}',
+        );
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Erreur réseau : $e';
-      notifyListeners();
+      debugPrint('Exception createEvent: $e');
       return false;
     }
   }
 
-  /// Modifier un événement existant en base de données
+  /// --- METTRE À JOUR UN ÉVÉNEMENT ---
   Future<bool> updateEvent(
-    dynamic eventId,
+    int eventId,
     Map<String, dynamic> eventData, {
     String? token,
   }) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/events/$eventId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: json.encode(eventData),
-      );
+      final response = await http
+          .put(
+            _buildUri('events/$eventId'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+            body: json.encode(eventData),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         await fetchUpcomingEvent(token: token);
         return true;
       } else {
-        _errorMessage =
-            'Erreur lors de la modification (${response.statusCode})';
-        notifyListeners();
+        debugPrint(
+          'Erreur modification événement (${response.statusCode}): ${response.body}',
+        );
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Erreur réseau : $e';
-      notifyListeners();
+      debugPrint('Exception updateEvent: $e');
       return false;
     }
   }
 
-  /// Annuler / Supprimer un événement en base de données
-  Future<bool> cancelEvent(dynamic eventId, {String? token}) async {
+  /// --- SUPPRIMER / ANNULER UN ÉVÉNEMENT ---
+  Future<bool> deleteEvent(int eventId, {String? token}) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/events/$eventId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .delete(
+            _buildUri('events/$eventId'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        _upcomingEvent = null;
-        _status = EventStatus.loaded;
-        notifyListeners();
+        if (_upcomingEvent?.id == eventId) {
+          _upcomingEvent = null;
+          notifyListeners();
+        }
         return true;
       } else {
-        _errorMessage = 'Erreur lors de l\'annulation (${response.statusCode})';
-        notifyListeners();
+        debugPrint(
+          'Erreur suppression événement (${response.statusCode}): ${response.body}',
+        );
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Erreur réseau : $e';
-      notifyListeners();
+      debugPrint('Exception deleteEvent: $e');
       return false;
-    }
-  }
-
-  /// Mettre à jour la présence de l'utilisateur connecté
-  Future<void> updatePresence(String statusKey, {String? token}) async {
-    if (_upcomingEvent == null) return;
-
-    // Optimistic update local
-    // (Ajustez selon la structure de votre modèle EventModel)
-    notifyListeners();
-
-    try {
-      await http.post(
-        Uri.parse('$baseUrl/events/${_upcomingEvent!.id}/presence'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: json.encode({'status': statusKey}),
-      );
-    } catch (e) {
-      debugPrint('Erreur mise à jour présence : $e');
     }
   }
 
@@ -208,6 +311,8 @@ class EventProvider with ChangeNotifier {
     _upcomingEvent = null;
     _status = EventStatus.initial;
     _errorMessage = '';
+    _myStatus = "Non identifié";
+    _connectedPlayer = null;
     notifyListeners();
   }
 }
