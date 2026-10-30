@@ -10,6 +10,7 @@ class MemberCard extends StatelessWidget {
   final bool isUncertain;
   final VoidCallback onTap;
   final VoidCallback? onPresenceUpdated;
+  final bool isCoach; // 1. Ajout de la variable pour le rôle
 
   const MemberCard({
     Key? key,
@@ -18,6 +19,7 @@ class MemberCard extends StatelessWidget {
     this.isUncertain = false,
     required this.onTap,
     this.onPresenceUpdated,
+    required this.isCoach, // 2. Rendu obligatoire dans le constructeur
   }) : super(key: key);
 
   /// Méthode d'appel de l'API Laravel pour modifier le statut du joueur par le coach
@@ -41,7 +43,7 @@ class MemberCard extends StatelessWidget {
           if (token.isNotEmpty) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'status': newStatus, // 'present' ou 'absent'[cite: 2]
+          'status': newStatus, // 'present' ou 'absent'
         }),
       );
 
@@ -130,8 +132,8 @@ class MemberCard extends StatelessWidget {
                 ),
               ),
 
-              // Boutons d'action pour le coach si le membre est incertain
-              if (isUncertain) ...[
+              // 3. Condition d'affichage : Si c'est un COACH ET que le membre est incertain -> Afficher les boutons de validation
+              if (isCoach && isUncertain) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -154,6 +156,7 @@ class MemberCard extends StatelessWidget {
                   ],
                 ),
               ] else ...[
+                // Pour le joueur (ou si ce n'est pas incertain), simple flèche informative
                 const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
               ],
             ],

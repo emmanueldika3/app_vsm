@@ -6,11 +6,11 @@ class SquadSection extends StatelessWidget {
   final String title;
   final Color color;
   final List<SquadMember> members;
-  final int eventId; // Ajout de l'ID de l'événement requis par MemberCard
+  final int eventId;
   final bool isUncertain;
   final Function(SquadMember member) onMemberTap;
-  final VoidCallback?
-  onPresenceUpdated; // Callback simple pour rafraîchir le parent (banc/listes)
+  final VoidCallback? onPresenceUpdated;
+  final bool isCoach; // 1. Déclaration de la variable ici
 
   const SquadSection({
     Key? key,
@@ -21,6 +21,7 @@ class SquadSection extends StatelessWidget {
     this.isUncertain = false,
     required this.onMemberTap,
     this.onPresenceUpdated,
+    required this.isCoach, // 2. Ajout obligatoire dans le constructeur
   }) : super(key: key);
 
   @override
@@ -28,7 +29,6 @@ class SquadSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // En-tête de section avec indicateur visuel coloré et compteur[cite: 3]
         Row(
           children: [
             Container(
@@ -51,8 +51,6 @@ class SquadSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-
-        // Liste des membres ou message si vide[cite: 3]
         members.isEmpty
             ? Padding(
                 padding: const EdgeInsets.symmetric(
@@ -78,12 +76,11 @@ class SquadSection extends StatelessWidget {
                   final member = members[index];
                   return MemberCard(
                     member: member,
-                    eventId:
-                        eventId, // On transmet l'ID de l'événement à la carte
+                    eventId: eventId,
                     isUncertain: isUncertain,
                     onTap: () => onMemberTap(member),
-                    onPresenceUpdated:
-                        onPresenceUpdated, // Transmet le signal de rafraîchissement au parent
+                    onPresenceUpdated: onPresenceUpdated,
+                    isCoach: isCoach, // 3. Transmission sécurisée à MemberCard
                   );
                 },
               ),

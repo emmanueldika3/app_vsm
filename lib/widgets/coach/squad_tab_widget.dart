@@ -13,7 +13,7 @@ class SquadTabWidget extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       children: [
         Text(
-          "Gestion de l'Effectif - ${event.title}",
+          "Etat de présence - ${event.title}",
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),

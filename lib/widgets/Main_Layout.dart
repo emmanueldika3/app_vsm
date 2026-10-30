@@ -4,18 +4,16 @@ import 'package:vsm_app/provider/auth_provider.dart';
 
 import 'package:vsm_app/widgets/vsm_app_bar.dart';
 import 'package:vsm_app/widgets/MemberProfileCard.dart';
+import 'package:vsm_app/widgets/MemberFullProfileWidget.dart';
 import 'package:vsm_app/widgets/custom_bottom_navigation_bar.dart';
 
-// Import du modèle EventModel requis par CoachDashboardScreen
 import 'package:vsm_app/models/event_model.dart';
 
-// Écrans d'accueil par rôle
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
 import 'package:vsm_app/screens/homeScreen.dart';
 
-// Autres onglets
 import 'package:vsm_app/screens/CotisationsScreen.dart';
 import 'package:vsm_app/screens/annuaireScreen.dart';
 import 'package:vsm_app/screens/matchScreen.dart';
@@ -39,12 +37,9 @@ class _MainLayoutState extends State<MainLayout> {
     _currentIndex = widget.initialIndex;
   }
 
-  // Affiche le bon tableau de bord sur l'onglet 0 selon le rôle
-  // 1. Méthode blindée pour mapper le rôle vers le bon écran
   Widget _getHomeWidgetByRole(dynamic rawRole) {
     if (rawRole == null) return const HomeScreen();
 
-    // Convertit n'importe quel type (String, Enum, Map) en String propre
     final String roleStr = rawRole
         .toString()
         .split('.')
@@ -52,7 +47,8 @@ class _MainLayoutState extends State<MainLayout> {
         .toLowerCase()
         .trim();
 
-    // Détection par mots-clés (plus flexible qu'un switch exact)
+    debugPrint(">>> MainLayout - Rôle détecté pour le Dashboard : $roleStr");
+
     if (roleStr.contains('admin') || roleStr.contains('president')) {
       return const AdminDashboardScreen();
     }
@@ -60,7 +56,6 @@ class _MainLayoutState extends State<MainLayout> {
     if (roleStr.contains('coach') ||
         roleStr.contains('encadreur') ||
         roleStr.contains('entraineur')) {
-      // Création d'un événement par défaut ou récupération de l'événement en cours
       final defaultEvent = EventModel(
         id: 1,
         title: "Prochain Match / Entraînement",
@@ -75,7 +70,9 @@ class _MainLayoutState extends State<MainLayout> {
         roleStr.contains('joueur') ||
         roleStr.contains('veteran') ||
         roleStr.contains('treasurer') ||
-        roleStr.contains('tresorier')) {
+        roleStr.contains('tresorier') ||
+        roleStr.contains('membre') ||
+        roleStr.contains('member')) {
       final defaultEvent = EventModel(
         id: 1,
         title: "Prochain Match / Entraînement",
@@ -91,10 +88,10 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
+    // Écoute active des changements du provider d'authentification
+    final authProvider = context.watch<AuthProvider>();
     final dynamic user = authProvider.user;
 
-    // Récupération sécurisée du rôle
     final String userRole = user is Map
         ? (user['role']?.toString() ?? 'joueur')
         : (user?.role?.toString() ?? 'joueur');
@@ -116,7 +113,11 @@ class _MainLayoutState extends State<MainLayout> {
               padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
               child: MemberProfileCard(
                 onViewFullProfile: () {
-                  Navigator.of(context).pushNamed('/profile');
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) =>
+                        const MemberFullProfileWidget(),
+                  );
                 },
                 onEditPhoto: () {},
               ),

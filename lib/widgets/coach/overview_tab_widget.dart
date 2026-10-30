@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vsm_app/provider/coach/event_provider.dart';
 import 'package:vsm_app/provider/announcement_provider.dart';
+import 'package:vsm_app/provider/auth_provider.dart';
 import 'package:vsm_app/widgets/coach/AnnouncementOverviewCard.dart';
 import 'package:vsm_app/widgets/coach/effectif_status_widget.dart';
 import 'package:vsm_app/widgets/coach/event_card_widget.dart';
@@ -118,14 +120,32 @@ class _OverviewTabWidgetState extends State<OverviewTabWidget> {
                       )
                     else
                       EventCardWidget(
-                        event: upcomingEvent!,
-                        isCoachOrAdmin:
-                            true, // Affiche le menu des 3 points pour le coach/admin[cite: 6]
-                        onTap: () {
-                          // Navigation vers les détails du match
-                        },
-                        onPresenceChanged: (newStatus) {
-                          eventProvider.updatePresence(newStatus);
+                        event: eventProvider.upcomingEvent!,
+                        isCoachOrAdmin: true,
+                        onPresenceChanged: (newStatus) async {
+                          final authProvider = Provider.of<AuthProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final eventProvider = Provider.of<EventProvider>(
+                            context,
+                            listen: false,
+                          );
+
+                          // 🔍 Teste ceci pour voir ce qui s'affiche dans ta console de debug
+                          print(
+                            "TOKEN ACTUEL DANS AUTHPROVIDER : ${authProvider.token}",
+                          );
+
+                          final prefs = await SharedPreferences.getInstance();
+                          print(
+                            "TOKEN DANS SHARED_PREFERENCES : ${prefs.getString('auth_token')}",
+                          );
+
+                          await eventProvider.updatePresence(
+                            newStatus,
+                            token: authProvider.token,
+                          );
                         },
                       ),
 

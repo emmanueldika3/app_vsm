@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'package:vsm_app/models/squad_member.dart';
+import 'package:vsm_app/provider/auth_provider.dart';
 import 'package:vsm_app/widgets/coach/member_details_bottom_sheet.dart';
 import 'package:vsm_app/widgets/coach/squad_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,7 +40,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
     if (kIsWeb) {
       return 'http://127.0.0.1:8000/api';
     } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api';
+      return 'http://10.52.90.145:8000/api';
     } else {
       return 'http://127.0.0.1:8000/api';
     }
@@ -46,7 +48,9 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
 
   Future<List<SquadMember>> _fetchUpcomingEventAndPresences() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    // Utilisation de la clé unifiée 'auth_token' avec repli
+    final token =
+        prefs.getString('auth_token') ?? prefs.getString('token') ?? '';
     final baseUrl = _getApiBaseUrl();
 
     // 1. Récupération de l'événement upcoming
@@ -55,7 +59,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       },
     );
 
@@ -83,7 +87,7 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       },
     );
 
@@ -113,6 +117,10 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Récupération du rôle coach depuis le AuthProvider
+    final authProvider = Provider.of<AuthProvider>(context);
+    final bool isCoach = authProvider.isCoach;
+
     return FutureBuilder<List<SquadMember>>(
       future: _squadFuture,
       builder: (context, snapshot) {
@@ -168,9 +176,9 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
               members: uncertains,
               eventId: _currentEventId!,
               isUncertain: true,
+              isCoach: isCoach, // Transmis ici
               onMemberTap: (member) => _showMemberDetails(context, member),
-              onPresenceUpdated: () =>
-                  _loadData(), // Recharge automatiquement les listes et le banc
+              onPresenceUpdated: () => _loadData(),
             ),
             const SizedBox(height: 16),
             SquadSection(
@@ -178,7 +186,9 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
               color: greenPrimary,
               members: presents,
               eventId: _currentEventId!,
+              isCoach: isCoach, // Transmis ici
               onMemberTap: (member) => _showMemberDetails(context, member),
+              onPresenceUpdated: () => _loadData(),
             ),
             const SizedBox(height: 16),
             SquadSection(
@@ -186,7 +196,9 @@ class _SquadEffectifWidgetState extends State<SquadEffectifWidget> {
               color: bordeauxRed,
               members: absents,
               eventId: _currentEventId!,
+              isCoach: isCoach, // Transmis ici
               onMemberTap: (member) => _showMemberDetails(context, member),
+              onPresenceUpdated: () => _loadData(),
             ),
           ],
         );

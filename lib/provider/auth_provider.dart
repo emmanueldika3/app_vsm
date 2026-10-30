@@ -27,40 +27,35 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
 
   UserModel? get user => _user;
-  UserModel? get currentUser => _user; // Alias pour compatibilité
+  UserModel? get currentUser => _user;
   String? get token => _token;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _user != null;
 
-  // --- GETTERS DE HÉRARCHIE ET PERMISSIONS ---
-
-  /// Super Utilisateurs / Administration Système & Club
   bool get isAdmin =>
       _user?.role == UserRole.admin || _user?.role == UserRole.president;
-
-  /// Droits d'Encadrement / Composition / Feuilles de Match
   bool get isCoach =>
       _user?.role == UserRole.coach ||
       _user?.role == UserRole.president ||
       _user?.role == UserRole.admin;
-
-  /// Droits de Gestion Financière / Cotisations
   bool get isTreasurer =>
       _user?.role == UserRole.treasurer ||
       _user?.role == UserRole.president ||
       _user?.role == UserRole.admin;
 
-  /// Méthodes de contrôle explicite pour les vues
   bool get canManageUsers => isAdmin;
   bool get canManageMatches => isCoach;
   bool get canManageFinances => isTreasurer;
 
   AuthProvider() {
-    tryAutoLogin();
+    _initAuth();
   }
 
-  // --- EN-TÊTES HTTP PAR DÉFAUT ---
+  Future<void> _initAuth() async {
+    await tryAutoLogin();
+  }
+
   Map<String, String> _getHeaders({bool withAuth = true}) {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -72,7 +67,6 @@ class AuthProvider extends ChangeNotifier {
     return headers;
   }
 
-  // 🔑 CONNEXION
   Future<bool> login({required String phone, required String password}) async {
     _setLoading(true);
     _clearError();
@@ -115,7 +109,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 🔄 RAFRAÎCHISSEMENT DU PROFIL DEPUIS L'API
   Future<void> fetchProfile() async {
     if (_token == null) return;
 
@@ -140,7 +133,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 📸 MISE À JOUR DE LA PHOTO DE PROFIL
   Future<bool> updateProfilePhoto(File imageFile) async {
     if (_token == null) return false;
 
@@ -180,7 +172,6 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  // 🔄 AUTO-CONNEXION
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -190,8 +181,11 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       _token = prefs.getString(_tokenKey);
-      final userMap = jsonDecode(prefs.getString(_userKey)!);
-      _user = UserModel.fromJson(userMap);
+      final userString = prefs.getString(_userKey);
+      if (userString != null) {
+        final userMap = jsonDecode(userString);
+        _user = UserModel.fromJson(userMap);
+      }
 
       notifyListeners();
       return true;
@@ -201,7 +195,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 🚪 DÉCONNEXION
   Future<void> logout() async {
     if (_token != null) {
       try {

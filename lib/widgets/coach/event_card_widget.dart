@@ -73,7 +73,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
       builder: (ctx) => _EventFormDialog(
         eventToEdit: eventToEdit,
         onSubmit: (eventData) async {
-          // Récupération instantanée du token depuis l'AuthProvider
           final authProvider = Provider.of<AuthProvider>(
             context,
             listen: false,
@@ -83,7 +82,7 @@ class _EventCardWidgetState extends State<EventCardWidget> {
             listen: false,
           );
 
-          final String? token = authProvider.token; // Token récupéré du login
+          final String? token = authProvider.token;
           bool success = false;
 
           if (eventToEdit == null) {
@@ -133,7 +132,6 @@ class _EventCardWidgetState extends State<EventCardWidget> {
             onPressed: () async {
               Navigator.pop(ctx);
 
-              // Récupération du token depuis l'AuthProvider pour la suppression
               final authProvider = Provider.of<AuthProvider>(
                 context,
                 listen: false,
@@ -173,6 +171,19 @@ class _EventCardWidgetState extends State<EventCardWidget> {
 
   // --- MENU ADMIN ---
   void _showAdminMenu(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isCoach) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Accès réservé aux coachs et administrateurs."),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -270,6 +281,10 @@ class _EventCardWidgetState extends State<EventCardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Récupération directe du rôle via AuthProvider pour conditionner l'affichage du menu admin
+    final authProvider = Provider.of<AuthProvider>(context);
+    final bool canManageEvents = authProvider.isCoach;
+
     final remaining = widget.event.timeRemaining.isNegative
         ? Duration.zero
         : widget.event.timeRemaining;
@@ -313,7 +328,8 @@ class _EventCardWidgetState extends State<EventCardWidget> {
                 ],
               ),
             ),
-            if (widget.isCoachOrAdmin)
+            // Affichage du menu optionnel conditionné par le rôle (Coach / Président / Admin)
+            if (canManageEvents)
               IconButton(
                 icon: const Icon(
                   Icons.more_vert,

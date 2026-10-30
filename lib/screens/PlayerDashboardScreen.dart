@@ -23,6 +23,7 @@ class PlayerDashboardScreen extends StatefulWidget {
 
 class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
   bool _isLoading = true;
+  late EventModel _activeEvent;
   String _selectedFormation = "4-3-3";
   Map<String, PresentPlayer> _assignedPlayers = {};
   List<PresentPlayer> _substitutePlayers = [];
@@ -30,11 +31,8 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
 
   // Couleurs de la charte VSM FC
   static const Color greenPrimary = Color(0xFF1E5235);
-  static const Color greenDark = Color(0xFF0A1E13);
-  static const Color bordeauxRed = Color(0xFF6B1D2F);
   static const Color goldAccent = Color(0xFFD4AF37);
 
-  // URL dynamique multi-plateforme
   String _getBaseUrl() {
     if (kIsWeb) return 'http://127.0.0.1:8000/api';
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -46,6 +44,7 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _activeEvent = widget.event;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchActiveEventAndTactics();
     });
@@ -57,7 +56,6 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
       final String? token = prefs.getString('auth_token');
       final String baseUrl = _getBaseUrl();
 
-      // 1. Récupérer l'événement à venir (upcoming event)
       final eventResponse = await http.get(
         Uri.parse('$baseUrl/events/upcoming'),
         headers: {
@@ -70,16 +68,19 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
       if (eventResponse.statusCode == 200) {
         final rawData = jsonDecode(eventResponse.body);
         final eventData = rawData['data'] ?? rawData;
-        final int? activeEventId = eventData['id'];
 
-        print(">>> ID de l'événement upcoming récupéré : $activeEventId");
+        if (eventData != null) {
+          setState(() {
+            _activeEvent = EventModel.fromJson(eventData);
+          });
+        }
 
+        final int? activeEventId = _activeEvent.id;
         if (activeEventId == null) {
           setState(() => _isLoading = false);
           return;
         }
 
-        // 2. Récupérer la tactique liée à cet ID exact
         final tacticResponse = await http.get(
           Uri.parse('$baseUrl/events/$activeEventId/tactics'),
           headers: {
@@ -94,41 +95,23 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
 
           setState(() {
             _selectedFormation = data['formation'] ?? "4-3-3";
-
-            // Réinitialisation
             _assignedPlayers.clear();
             _substitutePlayers.clear();
-            // _connectedPlayerPosition = null; // Décommentez si vous avez cette variable d'état
 
-            // 3. Traitement du 11 de départ (Titulaire sur le terrain)
             List<dynamic> startingXi = data['starting_xi'] ?? [];
             for (var item in startingXi) {
               String position = item['position'] ?? 'CM';
               var player = PresentPlayer.fromJson(item);
               _assignedPlayers[position] = player;
-
-              // Vérifie si c'est le joueur connecté (via is_connected ou is_me)
-              if (item['is_connected'] == true || item['is_me'] == true) {
-                // Le joueur est titulaire à la position : position
-                print(
-                  ">>> Le joueur connecté est titulaire en position : $position",
-                );
-              }
             }
 
             List<dynamic> substitutes = data['substitutes'] ?? [];
-            print(
-              ">>> Données brutes des remplaçants reçues de l'API : $substitutes",
-            );
-
             for (var item in substitutes) {
               try {
                 var player = PresentPlayer.fromJson(item);
                 _substitutePlayers.add(player);
               } catch (e) {
-                print(
-                  ">>> Erreur lors du parsing d'un remplaçant : $e sur l'item : $item",
-                );
+                print(">>> Erreur parsing remplaçant : $e");
               }
             }
 
@@ -141,7 +124,7 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print(">>> Erreur lors du chargement des tactiques : $e");
+      print(">>> Erreur chargement : $e");
       setState(() => _isLoading = false);
     }
   }
@@ -153,11 +136,23 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
           backgroundColor: greenPrimary,
-          title: Text("Espace Membre - ${widget.event.title}"),
+          elevation: 2,
+          toolbarHeight: 46,
+          titleSpacing: 16.0,
+          title: const Text(
+            "Chargement de l'événement...",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
         ),
         body: const Center(child: CircularProgressIndicator(color: goldAccent)),
       );
     }
+
+    final currentEvent = _activeEvent;
 
     return DefaultTabController(
       length: 4,
@@ -167,8 +162,10 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
           backgroundColor: greenPrimary,
           elevation: 2,
           toolbarHeight: 46,
+          automaticallyImplyLeading: false,
+          titleSpacing: 16.0,
           title: Text(
-            "Espace Membre - ${widget.event.title.isNotEmpty ? widget.event.title : 'Événement'}",
+            "Tableau de bord Joueur - ${currentEvent.title}",
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -207,7 +204,7 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
                     children: [
                       Icon(Icons.sports_soccer_outlined, size: 18),
                       SizedBox(width: 6),
-                      Text('Consignes'),
+                      Text('Tactique'),
                     ],
                   ),
                 ),
@@ -239,22 +236,15 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
         ),
         body: TabBarView(
           children: [
-            // 1. Vue d'ensemble
             const OverviewTabWidget(),
-
-            // 2. Consignes (Tactique chargée dynamiquement depuis la BD)
             PlayerTacticsTabWidget(
-              event: widget.event,
+              event: currentEvent,
               selectedFormation: _selectedFormation,
               assignedPlayers: _assignedPlayers,
               substitutePlayers: _substitutePlayers,
               connectedPlayer: _connectedPlayer,
             ),
-
-            // 3. Coéquipiers (Effectif adapté)
-            SquadTabWidget(event: widget.event),
-
-            // 4. Finances & Com
+            SquadTabWidget(event: currentEvent),
             const FinancesComTabWidget(),
           ],
         ),

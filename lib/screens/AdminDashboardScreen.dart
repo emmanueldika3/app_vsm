@@ -1,13 +1,26 @@
 import 'package:flutter/material.dart';
-
-// Importez votre widget de vue d'ensemble (ajustez le chemin si nécessaire)
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vsm_app/models/event_model.dart';
 import 'package:vsm_app/widgets/coach/overview_tab_widget.dart';
 import 'package:vsm_app/widgets/finances_tab_widget.dart';
 import 'package:vsm_app/widgets/members_tab_widget.dart';
 import 'package:vsm_app/widgets/communication_tab_widget.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+class AdminDashboardScreen extends StatefulWidget {
+  final EventModel? event;
+
+  const AdminDashboardScreen({super.key, this.event});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  bool _isLoading = true;
+  EventModel? _activeEvent;
 
   // Couleurs de la charte VSM
   static const Color greenPrimary = Color(0xFF1E5235);
@@ -15,8 +28,72 @@ class AdminDashboardScreen extends StatelessWidget {
   static const Color bordeauxRed = Color(0xFF6B1D2F);
   static const Color goldAccent = Color(0xFFD4AF37);
 
+  // URL dynamique multi-plateforme
+  String _getBaseUrl() {
+    if (kIsWeb) return 'http://127.0.0.1:8000/api';
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.52.90.145:8000/api';
+    }
+    return 'http://127.0.0.1:8000/api';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _activeEvent = widget.event;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchActiveEvent();
+    });
+  }
+
+  Future<void> _fetchActiveEvent() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString('auth_token');
+      final String baseUrl = _getBaseUrl();
+
+      final eventResponse = await http.get(
+        Uri.parse('$baseUrl/events/upcoming'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (eventResponse.statusCode == 200) {
+        final rawData = jsonDecode(eventResponse.body);
+        final eventData = rawData['data'] ?? rawData;
+        if (eventData != null) {
+          setState(() {
+            _activeEvent = EventModel.fromJson(eventData);
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print(">>> Erreur chargement event admin : $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading && _activeEvent == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        appBar: AppBar(
+          backgroundColor: greenPrimary,
+          title: const Text("Tableau de bord Administrateur"),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: goldAccent)),
+      );
+    }
+
+    final eventTitle = _activeEvent?.title ?? "Événement";
+
     return DefaultTabController(
       length: 4, // Passage à 4 onglets
       child: Scaffold(
@@ -26,9 +103,9 @@ class AdminDashboardScreen extends StatelessWidget {
           elevation: 2,
           // Réduction de la hauteur de la barre de titre
           toolbarHeight: 46,
-          title: const Text(
-            "Tableau de bord Administrateur",
-            style: TextStyle(
+          title: Text(
+            "Tableau de bord Administrateur - $eventTitle",
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.white,

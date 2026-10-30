@@ -1,9 +1,10 @@
-// lib/widgets/MemberProfileCard.dart
-
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vsm_app/widgets/MemberFullProfileWidget.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vsm_app/provider/auth_provider.dart';
 
 class MemberProfileCard extends StatefulWidget {
@@ -22,6 +23,37 @@ class MemberProfileCard extends StatefulWidget {
 
 class _MemberProfileCardState extends State<MemberProfileCard> {
   Uint8List? _pickedImageBytes;
+  static const String _prefAvatarKey = 'saved_user_avatar_base64';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedAvatar();
+  }
+
+  Future<void> _loadSavedAvatar() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? base64Image = prefs.getString(_prefAvatarKey);
+      if (base64Image != null && base64Image.isNotEmpty) {
+        setState(() {
+          _pickedImageBytes = base64Decode(base64Image);
+        });
+      }
+    } catch (e) {
+      debugPrint("Erreur chargement avatar stocké : $e");
+    }
+  }
+
+  Future<void> _saveAvatarToPrefs(Uint8List bytes) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String base64String = base64Encode(bytes);
+      await prefs.setString(_prefAvatarKey, base64String);
+    } catch (e) {
+      debugPrint("Erreur sauvegarde avatar : $e");
+    }
+  }
 
   Future<void> _handlePhotoTap() async {
     try {
@@ -36,6 +68,7 @@ class _MemberProfileCardState extends State<MemberProfileCard> {
         setState(() {
           _pickedImageBytes = bytes;
         });
+        await _saveAvatarToPrefs(bytes);
       }
     } catch (e) {
       debugPrint("Erreur sélection image : $e");
@@ -46,54 +79,60 @@ class _MemberProfileCardState extends State<MemberProfileCard> {
     }
   }
 
-  // Extrait proprement une valeur quel que soit le format de 'user' (Map ou objet)
-  String _extractData(dynamic user, List<String> keys, String defaultValue) {
-    if (user == null) return defaultValue;
-
-    // Si user est une Map (ex: JSON de l'API)
-    if (user is Map) {
-      for (final key in keys) {
-        if (user.containsKey(key) &&
-            user[key] != null &&
-            user[key].toString().isNotEmpty) {
-          return user[key].toString();
-        }
-      }
-    } else {
-      // Si user est une instance d'objet de classe
-      try {
-        final dynamic val = (user as dynamic).name ?? (user as dynamic).nom;
-        if (val != null) return val.toString();
-      } catch (_) {}
-    }
-
-    return defaultValue;
-  }
-
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final dynamic user = authProvider.user;
 
-    // Lecture sécurisée sans crash 'NoSuchMethodError'
-    final String memberName = _extractData(user, [
-      'name',
-      'nom',
-      'username',
-    ], "Emmanuel Dika");
-    final String memberTitle = _extractData(user, [
-      'title',
-      'titre',
-      'poste',
-    ], "Président");
-    final String memberRoleLabel = _extractData(user, [
-      'role',
-      'roleLabel',
-      'statut',
-    ], "Capitaine / Admin");
-    final String? serverAvatarUrl = user is Map
-        ? user['avatarUrl']?.toString()
-        : null;
+    // Récupération exacte via fullName (UserModel) ou fallback Map
+    String memberName = "Utilisateur";
+    if (user != null) {
+      if (user is Map) {
+        memberName =
+            user['fullName']?.toString() ??
+            user['name']?.toString() ??
+            user['nom']?.toString() ??
+            "Utilisateur";
+      } else {
+        try {
+          memberName =
+              user.fullName?.toString() ??
+              user.name?.toString() ??
+              user.nom?.toString() ??
+              "Utilisateur";
+        } catch (_) {}
+      }
+    }
+
+    // Récupération exacte via role
+    String rawRole = "Membre";
+    if (user != null) {
+      if (user is Map) {
+        rawRole = user['role']?.toString() ?? "Membre";
+      } else {
+        try {
+          rawRole = user.role?.toString() ?? "Membre";
+        } catch (_) {}
+      }
+    }
+
+    final String cleanRole = rawRole.split('.').last.trim();
+    final String formattedRole = cleanRole.isNotEmpty
+        ? cleanRole[0].toUpperCase() + cleanRole.substring(1).toLowerCase()
+        : "Membre";
+
+    // Récupération de la photo via photoUrl
+    String? serverAvatarUrl;
+    if (user != null) {
+      if (user is Map) {
+        serverAvatarUrl =
+            user['photoUrl']?.toString() ?? user['avatarUrl']?.toString();
+      } else {
+        try {
+          serverAvatarUrl = user.photoUrl?.toString();
+        } catch (_) {}
+      }
+    }
 
     const Color vsmDarkGreen = Color(0xFF1E5235);
     const Color vsmBadgeGreen = Color(0xFF006837);
@@ -102,6 +141,7 @@ class _MemberProfileCardState extends State<MemberProfileCard> {
 
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: cardBackground,
         borderRadius: BorderRadius.circular(16),
@@ -114,150 +154,112 @@ class _MemberProfileCardState extends State<MemberProfileCard> {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // Empêche l'erreur d'espace infini
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 12.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+          // Avatar éditable avec persistance
+          GestureDetector(
+            onTap: _handlePhotoTap,
+            child: Stack(
               children: [
-                // Avatar éditable avec badge jaune
-                GestureDetector(
-                  onTap: _handlePhotoTap,
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 70,
-                        height: 70,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: vsmDarkGreen,
-                        ),
-                        child: ClipOval(
-                          child: _pickedImageBytes != null
-                              ? Image.memory(
-                                  _pickedImageBytes!,
-                                  fit: BoxFit.cover,
-                                )
-                              : (serverAvatarUrl != null &&
-                                    serverAvatarUrl.isNotEmpty)
-                              ? Image.network(
-                                  serverAvatarUrl,
-                                  fit: BoxFit.cover,
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 40,
-                                ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: vsmGold,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
+                Container(
+                  width: 55,
+                  height: 55,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: vsmDarkGreen,
+                  ),
+                  child: ClipOval(
+                    child: _pickedImageBytes != null
+                        ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
+                        : (serverAvatarUrl != null &&
+                              serverAvatarUrl.isNotEmpty)
+                        ? Image.network(serverAvatarUrl, fit: BoxFit.cover)
+                        : const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 32,
                           ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 13,
-                            color: vsmDarkGreen,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-                const SizedBox(width: 16),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: vsmGold,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      size: 11,
+                      color: vsmDarkGreen,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
 
-                // Textes dynamiques
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        memberName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: vsmDarkGreen,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        memberTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: vsmBadgeGreen,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          memberRoleLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+          // Informations du membre (fullName + role)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  memberName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: vsmDarkGreen,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: vsmBadgeGreen,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    formattedRole,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          Divider(color: Colors.grey.withOpacity(0.15), height: 1),
-
-          // Bouton bas
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onViewFullProfile,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.remove_red_eye_outlined,
-                      size: 18,
-                      color: vsmBadgeGreen,
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Voir le profil complet',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: vsmBadgeGreen,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          // Action unique sur le côté (l'icône de l'œil uniquement)
+          IconButton(
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(8),
+            icon: const Icon(
+              Icons.remove_red_eye_outlined,
+              size: 22,
+              color: vsmBadgeGreen,
             ),
+            tooltip: "Voir le profil complet",
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (BuildContext context) =>
+                    const MemberFullProfileWidget(),
+              );
+            },
           ),
         ],
       ),
