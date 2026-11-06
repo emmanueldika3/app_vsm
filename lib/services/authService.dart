@@ -7,7 +7,7 @@ import 'package:vsm_app/models/event_model.dart';
 // Importez vos autres dashboards selon les rôles
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 import 'package:vsm_app/provider/coach/event_provider.dart';
-// import 'package:vsm_app/screens/PresidentDashboardScreen.dart';
+import 'package:vsm_app/screens/TreasureDashboardScreen.dart'; // Nom corrigé avec "Treasurer"
 import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 
 class LoginController {
@@ -81,38 +81,42 @@ class LoginController {
     }
   }
 
-  //  REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
+  // REDIRECTION SELON LE RÔLE DE L'UTILISATEUR
   static void _navigateToRoleDashboard(BuildContext context, UserRole role) {
     final eventProvider = Provider.of<EventProvider>(context, listen: false);
 
-    // Récupération de l'événement dynamique depuis le provider
-    final currentEvent = eventProvider.upcomingEvent;
+    // Récupération sécurisée de l'événement dynamique (avec fallback si null)
+    final currentEvent =
+        eventProvider.upcomingEvent ??
+        EventModel(
+          id: 0,
+          title: "Événement VSM",
+          type: "match",
+          eventDateTime: DateTime.now(),
+          venue: "Stade",
+        );
 
-    // Si aucun événement n'est présent, on gère l'écran selon le type attendu,
-    // mais en utilisant les propriétés de l'événement récupéré s'il existe.
     Widget destinationScreen;
 
     switch (role) {
       case UserRole.admin:
-        destinationScreen = const AdminDashboardScreen();
+        destinationScreen = AdminDashboardScreen(event: currentEvent);
         break;
 
       case UserRole.treasurer:
-        // TODO: Remplacer par TreasurerDashboardScreen()
-        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
+        destinationScreen = TreasurerDashboardScreen(event: currentEvent);
         break;
 
       case UserRole.president:
-        // TODO: Remplacer
-        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
+        destinationScreen = AdminDashboardScreen(event: currentEvent);
         break;
 
       case UserRole.coach:
-        destinationScreen = CoachDashboardScreen(event: currentEvent!);
+        destinationScreen = CoachDashboardScreen(event: currentEvent);
         break;
 
       case UserRole.player:
-        destinationScreen = PlayerDashboardScreen(event: currentEvent!);
+        destinationScreen = PlayerDashboardScreen(event: currentEvent);
         break;
     }
 

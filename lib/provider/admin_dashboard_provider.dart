@@ -37,6 +37,58 @@ class AdminDashboardProvider extends ChangeNotifier {
       _executedDisbursements;
   bool get isLoadingExecutedDisbursements => _isLoadingExecutedDisbursements;
 
+  // --- Liste globale des décaissements pour les calculs (Jour, Mois, Exécutés) ---
+  List<dynamic> _allExpenses = [];
+  List<dynamic> get allExpenses => _allExpenses;
+
+  // Getters dynamiques pour les dépenses du jour et du mois
+  double get todayExpensesTotal {
+    double total = 0;
+    final String todayStr = DateTime.now().toString().substring(0, 10);
+
+    for (var item in _allExpenses) {
+      final status = item['status'] ?? '';
+      if (status == 'executed' || status == 'approved') {
+        final dateStr = item['date'] ?? item['created_at'] ?? '';
+        if (dateStr.startsWith(todayStr)) {
+          total += (item['amount'] ?? 0).toDouble();
+        }
+      }
+    }
+    return total;
+  }
+
+  double get monthExpensesTotal {
+    double total = 0;
+    final String currentMonthStr = DateTime.now().toString().substring(0, 7);
+
+    for (var item in _allExpenses) {
+      final status = item['status'] ?? '';
+      if (status == 'executed' || status == 'approved') {
+        final dateStr = item['date'] ?? item['created_at'] ?? '';
+        if (dateStr.startsWith(currentMonthStr)) {
+          total += (item['amount'] ?? 0).toDouble();
+        }
+      }
+    }
+    return total;
+  }
+
+  // Getters dynamiques pour les décaissements exécutés (basés sur _allExpenses)
+  double get totalExecutedAmount {
+    double total = 0;
+    for (var item in _allExpenses) {
+      if (item['status'] == 'executed') {
+        total += (item['amount'] ?? 0).toDouble();
+      }
+    }
+    return total;
+  }
+
+  int get executedCount {
+    return _allExpenses.where((item) => item['status'] == 'executed').length;
+  }
+
   // --- Collected Contributions ---
   CollectedContributionsModel? _collectedContributions;
   bool _isLoadingCollectedContributions = false;
@@ -99,7 +151,6 @@ class AdminDashboardProvider extends ChangeNotifier {
   List<dynamic> get activeMembers => _activeMembers;
   bool get isLoadingActiveMembers => _isLoadingActiveMembers;
 
-  // Getter sécurisé pour activeMembersCount (Compte uniquement les membres dont status == 'active')
   int get activeMembersCount {
     if (_activeMembers.isNotEmpty) {
       return _activeMembers.where((m) => m['status'] == 'active').length;
@@ -168,16 +219,14 @@ class AdminDashboardProvider extends ChangeNotifier {
             contributionsCount: 0,
           );
         }),
-        _apiService.get('/decaissements', token: token).catchError((e) {
+        _apiService.get('/admin/decaissements', token: token).catchError((e) {
           debugPrint("Erreur Liste Decaissements: $e");
           return null;
         }),
-        // Endpoint /users filtré par statut pending
         _apiService.get('/users?status=pending', token: token).catchError((e) {
           debugPrint("Erreur Membres en attente: $e");
           return null;
         }),
-        // Endpoint /users pour tous les membres enregistrés
         _apiService.get('/users', token: token).catchError((e) {
           debugPrint("Erreur Membres actifs: $e");
           return null;
@@ -199,11 +248,18 @@ class AdminDashboardProvider extends ChangeNotifier {
       if (results[4] is CollectedContributionsModel) {
         _collectedContributions = results[4] as CollectedContributionsModel;
       }
-      if (results[5] != null && results[5]['data'] != null) {
-        final List<dynamic> list = results[5]['data'];
-        _pendingExpensesList = list
-            .where((e) => e['status'] == 'pending')
-            .toList();
+      if (results[5] != null) {
+        final rawData =
+            results[5] is Map<String, dynamic> && results[5].containsKey('data')
+            ? results[5]['data']
+            : results[5];
+
+        if (rawData is List) {
+          _allExpenses = rawData;
+          _pendingExpensesList = _allExpenses
+              .where((e) => e['status'] == 'pending')
+              .toList();
+        }
       }
       if (results[6] != null) {
         final rawData =
@@ -369,7 +425,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Attribution dynamique du rôle d'un membre
   Future<bool> updateMemberRole({
     required String token,
     required int userId,
@@ -396,7 +451,6 @@ class AdminDashboardProvider extends ChangeNotifier {
     }
   }
 
-  /// Activation / Suspension de l'accès d'un membre
   Future<bool> toggleMemberStatus({
     required String token,
     required int userId,
@@ -409,13 +463,11 @@ class AdminDashboardProvider extends ChangeNotifier {
 
       if (response != null &&
           (response['status'] == 'success' || response['success'] == true)) {
-        // 1. Mise à jour instantanée du statut local pour décrémenter/incrémenter le getter tout de suite
         final index = _activeMembers.indexWhere((m) => m['id'] == userId);
         if (index != -1) {
           _activeMembers[index]['status'] = activate ? 'active' : 'suspended';
         }
 
-        // 2. Synchronisation complète des membres depuis le serveur
         await fetchActiveMembers(token);
 
         notifyListeners();
@@ -527,9 +579,13 @@ class AdminDashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _apiService.get('/decaissements', token: token);
+      final response = await _apiService.get(
+        '/admin/decaissements',
+        token: token,
+      );
       if (response != null && response['data'] != null) {
         final List<dynamic> list = response['data'];
+        _allExpenses = list;
         _pendingExpensesList = list
             .where((e) => e['status'] == 'pending')
             .toList();

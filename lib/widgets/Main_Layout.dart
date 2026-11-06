@@ -12,6 +12,7 @@ import 'package:vsm_app/models/event_model.dart';
 import 'package:vsm_app/screens/AdminDashboardScreen.dart';
 import 'package:vsm_app/screens/CoachDashboardScreen.dart';
 import 'package:vsm_app/screens/PlayerDashboardScreen.dart';
+import 'package:vsm_app/screens/TreasureDashboardScreen.dart';
 import 'package:vsm_app/screens/homeScreen.dart';
 
 import 'package:vsm_app/screens/CotisationsScreen.dart';
@@ -69,8 +70,6 @@ class _MainLayoutState extends State<MainLayout> {
     if (roleStr.contains('player') ||
         roleStr.contains('joueur') ||
         roleStr.contains('veteran') ||
-        roleStr.contains('treasurer') ||
-        roleStr.contains('tresorier') ||
         roleStr.contains('membre') ||
         roleStr.contains('member')) {
       final defaultEvent = EventModel(
@@ -81,6 +80,18 @@ class _MainLayoutState extends State<MainLayout> {
         venue: "Stade VSM",
       );
       return PlayerDashboardScreen(event: defaultEvent);
+    }
+    if (roleStr.contains('treasurer') ||
+        roleStr.contains('tresorier') ||
+        roleStr.contains('commissaire aux compte')) {
+      final defaultEvent = EventModel(
+        id: 1,
+        title: "Prochain Match / Entraînement",
+        type: "match",
+        eventDateTime: DateTime.now(),
+        venue: "Stade VSM",
+      );
+      return TreasurerDashboardScreen(event: defaultEvent);
     }
 
     return const HomeScreen();
@@ -99,8 +110,8 @@ class _MainLayoutState extends State<MainLayout> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       appBar: VsmAppBar(
-        userRole: userRole,
-        hasUnreadNotifications: true,
+        // userRole: userRole,
+        hasUnreadNotifications: false,
         onRefresh: () {},
         onNotificationPressed: () {},
         onSettingsPressed: () {},

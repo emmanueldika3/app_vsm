@@ -14,7 +14,7 @@ class ApiService {
     }
 
     if (Platform.isAndroid) {
-      return 'http://10.52.90.145:8000/api';
+      return 'http://10.208.55.145:8000/api';
     }
 
     return 'http://127.0.0.1:8000/api';
@@ -101,21 +101,40 @@ class ApiService {
     }
   }
 
+  /// Méthode DELETE générique
+  Future<dynamic> delete(String endpoint, {String? token}) async {
+    final cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
+    final url = Uri.parse('$baseUrl$cleanEndpoint');
+
+    try {
+      final response = await http.delete(url, headers: _getHeaders(token));
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return {'status': 'success'};
+        return jsonDecode(response.body);
+      }
+
+      throw Exception(
+        'Erreur DELETE ($endpoint): ${response.statusCode} - ${response.body}',
+      );
+    } catch (e) {
+      debugPrint('Exception DELETE ($endpoint): $e');
+      rethrow;
+    }
+  }
+
   // ==========================================
   // GESTION DES MEMBRES ET ROLES
   // ==========================================
 
-  /// Mettre à jour le rôle d'un membre
   Future<dynamic> updateUserRole(String token, int userId, String role) async {
     return await put('/users/$userId/role', token: token, body: {'role': role});
   }
 
-  /// Suspendre l'accès d'un membre
   Future<dynamic> suspendUser(String token, int userId) async {
     return await post('/users/$userId/suspend', token: token);
   }
 
-  /// Réactiver le compte d'un membre suspendu
   Future<dynamic> activateUser(String token, int userId) async {
     return await post('/users/$userId/activate', token: token);
   }
@@ -124,7 +143,6 @@ class ApiService {
   // FINANCES ET DASHBOARD
   // ==========================================
 
-  /// Récupération du solde en caisse
   Future<CashBalanceModel> fetchCashBalance(String token) async {
     final response = await this.get(
       '/admin/finances/cash-balance',
@@ -133,7 +151,6 @@ class ApiService {
     return CashBalanceModel.fromJson(response);
   }
 
-  /// Récupération des décaissements exécutés
   Future<ExecutedDisbursementsModel> fetchExecutedDisbursements(
     String token,
   ) async {
@@ -144,7 +161,6 @@ class ApiService {
     return ExecutedDisbursementsModel.fromJson(response);
   }
 
-  /// Récupération du compteur des décaissements en attente
   Future<PendingDisbursementsModel> fetchPendingDisbursements(
     String token,
   ) async {
@@ -155,7 +171,6 @@ class ApiService {
     return PendingDisbursementsModel.fromJson(response);
   }
 
-  /// Récupération des cotisations perçues
   Future<CollectedContributionsModel> fetchCollectedContributions(
     String token,
   ) async {
@@ -164,5 +179,61 @@ class ApiService {
       token: token,
     );
     return CollectedContributionsModel.fromJson(response);
+  }
+
+  // ==========================================
+  // GESTION DES CONTRIBUTIONS (TRÉSORERIE)
+  // ==========================================
+
+  /// Récupérer la liste globale des contributions
+  Future<dynamic> fetchContributions(String token) async {
+    return await get('/contributions', token: token);
+  }
+
+  /// Enregistrer une nouvelle contribution
+  Future<dynamic> addContribution(
+    String token, {
+    required int userId,
+    required double amount,
+    String type = 'standard',
+    String status = 'paid',
+    String? paidAt,
+  }) async {
+    return await post(
+      '/contributions',
+      token: token,
+      body: {
+        'user_id': userId,
+        'amount': amount,
+        'type': type,
+        'status': status,
+        'paid_at': paidAt ?? DateTime.now().toString().substring(0, 19),
+      },
+    );
+  }
+
+  /// Mettre à jour une contribution existante
+  Future<dynamic> updateContribution(
+    String token, {
+    required int id,
+    int? userId,
+    double? amount,
+    String? type,
+    String? status,
+    String? paidAt,
+  }) async {
+    final Map<String, dynamic> body = {};
+    if (userId != null) body['user_id'] = userId;
+    if (amount != null) body['amount'] = amount;
+    if (type != null) body['type'] = type;
+    if (status != null) body['status'] = status;
+    if (paidAt != null) body['paid_at'] = paidAt;
+
+    return await put('/contributions/$id', token: token, body: body);
+  }
+
+  /// Supprimer une contribution
+  Future<dynamic> removeContribution(String token, int id) async {
+    return await delete('/contributions/$id', token: token);
   }
 }

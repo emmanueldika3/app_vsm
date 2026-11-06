@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final String userRole; // Ex: 'ADMIN', 'COACH', 'TREASURER'
   final bool hasUnreadNotifications;
   final VoidCallback? onRefresh;
   final VoidCallback? onNotificationPressed;
@@ -11,8 +10,7 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   const VsmAppBar({
     super.key,
-    this.title = 'VÉTÉRANS SANTÉ MAHÈN',
-    this.userRole = 'ADMIN',
+    this.title = 'VÉTÉRANS SANTÉ MAHÈN (V.S.M)',
     this.hasUnreadNotifications = true,
     this.onRefresh,
     this.onNotificationPressed,
@@ -23,25 +21,10 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(65);
 
-  Color _getBadgeColor(String role) {
-    switch (role.toUpperCase()) {
-      case 'ADMIN':
-        return const Color(0xFF6B1D2F); // Bordeaux Red
-      case 'COACH':
-        return const Color(0xFF143824); // Dark Green
-      case 'TREASURER':
-        return const Color(0xFFB8860B); // Dark Goldenrod
-      default:
-        return Colors.blueGrey.shade800;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     const Color greenPrimary = Color(0xFF1E5235);
     const Color goldAccent = Color(0xFFD4AF37);
-
-    final String formattedRole = userRole.toUpperCase();
 
     return AppBar(
       elevation: 4,
@@ -51,33 +34,40 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: 12,
       title: Row(
         children: [
-          // Logo Officiel avec Bordure Or
+          // Logo grand format forcé via Transform.scale et conteneur élargi
           Container(
-            width: 52,
-            height: 52,
-            padding: const EdgeInsets.all(3),
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(color: goldAccent, width: 2),
+              border: Border.all(color: goldAccent, width: 2.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withOpacity(0.3),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Image.asset(
-              'assets/images/logo_vsm.png',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(
-                  Icons.sports_soccer,
-                  size: 26,
-                  color: greenPrimary,
-                );
-              },
+            child: ClipOval(
+              child: Transform.scale(
+                scale:
+                    1.3, // Ajuste ce zoom si tu veux le grossir encore plus (ex: 1.4)
+                child: Image.asset(
+                  'assets/images/logo_vsm.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(
+                      child: Icon(
+                        Icons.sports_soccer,
+                        size: 28,
+                        color: greenPrimary,
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -91,57 +81,24 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Row(
-                  children: [
-                    const Icon(Icons.location_on, color: goldAccent, size: 11),
-                    const SizedBox(width: 2),
-                    const Text(
+                  children: const [
+                    Icon(Icons.location_on, color: goldAccent, size: 14),
+                    SizedBox(width: 4),
+                    Text(
                       'PK11',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: goldAccent,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 3,
-                      height: 3,
-                      decoration: const BoxDecoration(
-                        color: Colors.white54,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Badge dynamique d'Espace Réseau
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getBadgeColor(formattedRole),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: goldAccent.withOpacity(0.6),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Text(
-                        'ESPACE $formattedRole',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 1,
-                        ),
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ],
@@ -158,7 +115,7 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
           tooltip: 'Rafraîchir',
           onPressed: onRefresh,
         ),
-        // Action Notifications avec indicateur conditionnel
+        // Action Notifications
         Stack(
           alignment: Alignment.center,
           children: [
@@ -178,9 +135,10 @@ class VsmAppBar extends StatelessWidget implements PreferredSizeWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: goldAccent,
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
                     shape: BoxShape.circle,
+                    border: Border.all(color: greenPrimary, width: 1.5),
                   ),
                 ),
               ),

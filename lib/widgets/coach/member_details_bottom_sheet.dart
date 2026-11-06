@@ -36,7 +36,7 @@ class _MemberDetailsBottomSheetState extends State<MemberDetailsBottomSheet> {
   String _getBaseUrl() {
     if (kIsWeb) return 'http://127.0.0.1:8000/api';
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.52.90.145:8000/api';
+      return 'http://10.208.55.145:8000/api';
     }
     return 'http://127.0.0.1:8000/api';
   }

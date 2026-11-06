@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +24,17 @@ class MemberCard extends StatelessWidget {
     required this.isCoach, // 2. Rendu obligatoire dans le constructeur
   }) : super(key: key);
 
+  /// Méthode pour déterminer dynamiquement l'URL de base selon la plateforme
+  String _getBaseUrl() {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api';
+    }
+    if (Platform.isAndroid) {
+      return 'http://10.208.55.145:8000/api';
+    }
+    return 'http://127.0.0.1:8000/api';
+  }
+
   /// Méthode d'appel de l'API Laravel pour modifier le statut du joueur par le coach
   Future<void> _updateCoachPresence(
     BuildContext context,
@@ -31,8 +44,7 @@ class MemberCard extends StatelessWidget {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
 
-      // Remplace par ton URL de base API ou utilise ta variable globale
-      const String baseUrl = 'http://127.0.0.1:8000/api';
+      final String baseUrl = _getBaseUrl();
       final url = Uri.parse('$baseUrl/events/$eventId/presences/${member.id}');
 
       final response = await http.post(

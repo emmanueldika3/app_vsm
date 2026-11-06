@@ -19,7 +19,7 @@ class AnnouncementService {
       return 'http://127.0.0.1:8000/api';
     }
     if (Platform.isAndroid) {
-      return 'http://10.52.90.145:8000/api';
+      return 'http://10.208.55.145:8000/api';
     }
     return 'http://127.0.0.1:8000/api';
   }

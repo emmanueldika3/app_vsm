@@ -8,7 +8,7 @@ import 'package:vsm_app/widgets/Main_Layout.dart';
 import 'package:vsm_app/provider/admin_dashboard_provider.dart';
 import 'package:vsm_app/config/api_config.dart';
 
-// import 'package:vsm_app/screens/TreasurerDashboardScreen.dart';
+import 'package:vsm_app/screens/TreasureDashboardScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

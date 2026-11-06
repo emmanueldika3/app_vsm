@@ -17,6 +17,7 @@ import 'provider/coach/event_provider.dart';
 import 'provider/announcement_provider.dart';
 import 'provider/player_dashboard_provider.dart';
 import 'provider/admin_dashboard_provider.dart';
+import 'provider/Notificationprovider.dart';
 
 // Écrans
 import 'screens/homeScreen.dart';
@@ -53,6 +54,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => PlayerDashboardProvider()),
         ChangeNotifierProvider(create: (_) => AdminDashboardProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
 
         // Services
         ChangeNotifierProvider(create: (_) => DashboardService()),
